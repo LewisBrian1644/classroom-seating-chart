@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>班级座位表</title>
 <script src="shared.js"></script>
+<script src="sync.js"></script>
 <style>
 /* ============ CSS Variables ============ */
 :root {
@@ -596,6 +597,7 @@ function saveEdit() {
   if (newName) {
     saveName(editingStudentId, newName);
     render(currentWeekNum);
+    syncPush();
   }
   closeEditModal();
 }
@@ -616,7 +618,10 @@ function goToDate(dateStr) {
 // ============================================================================
 //  Init
 // ============================================================================
-function init() {
+async function init() {
+  // 从后端拉取最新数据(未配置后端则静默回退本地)
+  try { await syncLoad(); } catch (e) {}
+
   // Semester start
   currentSemesterStart = getSemesterStart();
   document.getElementById('semesterStartInput').value = toDateString(currentSemesterStart);
@@ -656,6 +661,7 @@ function init() {
   document.getElementById('semesterStartInput').addEventListener('change', (e) => {
     const newStart = new Date(e.target.value + 'T00:00:00');
     setSemesterStart(newStart);
+    syncPush();
     currentSemesterStart = newStart;
     const today = new Date();
     const wn = getWeekNumber(today, currentSemesterStart);

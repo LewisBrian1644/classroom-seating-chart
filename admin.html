@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>班级座位表 · 管理员换座</title>
 <script src="shared.js"></script>
+<script src="sync.js"></script>
 <style>
 /* ============ CSS Variables ============ */
 :root {
@@ -531,6 +532,7 @@ function saveAdminArrangement() {
   const usedSeats = desks.reduce((n, d) => n + d.students.filter(s => s !== null).length, 0);
 
   addChange({ startDate, desks, note: '手动换座' });
+  syncPush();
   if (missing.length) {
     setAdminStatus(`已保存。注意:以下学生未安排座位 — ${missing.map(getStudentName).join('、')}`, 'ok');
   } else {
@@ -556,13 +558,17 @@ function refreshAdminChangesList() {
   el.querySelectorAll('.del').forEach(btn => {
     btn.addEventListener('click', () => {
       removeChange(Number(btn.dataset.idx));
+      syncPush();
       refreshAdminChangesList();
       setAdminStatus('已删除该换座记录。');
     });
   });
 }
 
-function init() {
+async function init() {
+  // 从后端拉取最新数据(未配置后端则静默回退本地)
+  try { await syncLoad(); } catch (e) {}
+
   document.getElementById('adminStartDate').value = snapToWeekStart(formatDate(new Date()));
 
   // 打开时以「今天当前生效的座位」为初始内容

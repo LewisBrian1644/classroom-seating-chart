@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>班级座位表</title>
+<script src="shared.js"></script>
 <style>
 /* ============ CSS Variables ============ */
 :root {
@@ -452,6 +453,7 @@ body {
 
   <div class="footer">
     换座规则：每周组号+1，排号-1 · 每第5周组号额外+1（打破循环）· 任意10周内坐遍1-5排
+    <div style="margin-top:6px;"><a href="admin.html" style="color:#bbb;">🔧 管理员入口</a></div>
   </div>
 </div>
 
@@ -469,221 +471,7 @@ body {
 </div>
 
 <script>
-// ============================================================================
-//  CLASSROOM SEATING CHART — Core Logic
-// ============================================================================
-
-const NUM_GROUPS = 5;
-const NUM_ROWS = 5;
-const FIXED_STUDENT = 1;   // 鲁唐扬真 — fixed at (4,1), sits alone
-const ALONE_STUDENT = 2;   // 王浩宇 — sits alone, paired with virtual #49
-const VIRTUAL_STUDENT = 49;
-
-// Student ID → name mapping for initial arrangement
-// IDs: 1=鲁唐扬真(fixed) 2=王浩宇(alone) 3-48=others row by row
-const STUDENT_NAMES = {
-  1:'鲁唐扬真', 2:'王浩宇',
-  3:'单俊杰', 4:'唐梓耀', 5:'周加灵', 6:'仝亚盈',
-  7:'宋欣哲', 8:'邵振琦', 9:'韩语哲', 10:'熊晨伊',
-  11:'黄启宸', 12:'马亚勋',
-  13:'李彦节', 14:'杨曜铭', 15:'车俊贤', 16:'李丞阳',
-  17:'余芃澄', 18:'何炫毅', 19:'李庭葳', 20:'桂钰欢',
-  21:'蔡磊', 22:'王奕霖',
-  23:'郑光朔', 24:'吴子墨', 25:'贺奥凯', 26:'于昕呈',
-  27:'刘耘松', 28:'鲍奕丞', 29:'代一尘', 30:'王传栋',
-  31:'李博文', 32:'杨李吉',
-  33:'于阅', 34:'高若元', 35:'杜卓航', 36:'刘一诺',
-  37:'郭振宇', 38:'周至柔', 39:'陈柯璟', 40:'邓轶辰',
-  41:'蒋滇粤', 42:'李梓维', 43:'刘涛', 44:'代岑',
-  45:'樊霖洁', 46:'隆竞瑶', 47:'叶恒铭', 48:'周钇寰',
-};
-
-// ============================================================================
-//  Initial desk arrangement (week 0)
-//  Based on actual name list. 鲁唐扬真(1号) fixed at 4组1排.
-//  韩语哲/熊晨伊 moved to (4,5) to make room for 鲁唐扬真 at (4,1).
-//  Each desk: { students: [leftId, rightId], initGroup, initRow }
-// ============================================================================
-function buildInitialDesks() {
-  const assignments = [
-    // Row 1 (front)
-    [1,1, [3,4]],                     // 单俊杰 / 唐梓耀
-    [2,1, [5,6]],                     // 周加灵 / 仝亚盈
-    [3,1, [7,8]],                     // 宋欣哲 / 邵振琦
-    [4,1, [FIXED_STUDENT, null]],     // 鲁唐扬真 — 固定单人
-    [5,1, [11,12]],                   // 黄启宸 / 马亚勋
-    // Row 2
-    [1,2, [13,14]],                   // 李彦节 / 杨曜铭
-    [2,2, [15,16]],                   // 车俊贤 / 李丞阳
-    [3,2, [17,18]],                   // 余芃澄 / 何炫毅
-    [4,2, [19,20]],                   // 李庭葳 / 桂钰欢
-    [5,2, [21,22]],                   // 蔡磊 / 王奕霖
-    // Row 3
-    [1,3, [23,24]],                   // 郑光朔 / 吴子墨
-    [2,3, [25,26]],                   // 贺奥凯 / 于昕呈
-    [3,3, [27,28]],                   // 刘耘松 / 鲍奕丞
-    [4,3, [29,30]],                   // 代一尘 / 王传栋
-    [5,3, [31,32]],                   // 李博文 / 杨李吉
-    // Row 4
-    [1,4, [33,34]],                   // 于阅 / 高若元
-    [2,4, [35,36]],                   // 杜卓航 / 刘一诺
-    [3,4, [ALONE_STUDENT, VIRTUAL_STUDENT]], // 王浩宇 — 单人
-    [4,4, [37,38]],                   // 郭振宇 / 周至柔
-    [5,4, [39,40]],                   // 陈柯璟 / 邓轶辰
-    // Row 5 (back)
-    [1,5, [41,42]],                   // 蒋滇粤 / 李梓维
-    [2,5, [43,44]],                   // 刘涛 / 代岑
-    [3,5, [45,46]],                   // 樊霖洁 / 隆竞瑶
-    [4,5, [9,10]],                    // 韩语哲 / 熊晨伊 (调换至此)
-    [5,5, [47,48]],                   // 叶恒铭 / 周钇寰
-  ];
-
-  return assignments.map(([g, r, seats], i) => ({
-    id: i,
-    students: seats,
-    initGroup: g,
-    initRow: r,
-    isFixed: seats[0] === FIXED_STUDENT || seats[1] === FIXED_STUDENT,
-    isAlone: seats[0] === ALONE_STUDENT || seats[1] === ALONE_STUDENT,
-  }));
-}
-
-// ============================================================================
-//  Rotation logic
-//  Normal week: group+1, row-1  (with wrap)
-//  Every 5th application (weeks 5,10,15,…): group+2, row-1
-//  This extends the cycle from 5 weeks to 25 weeks.
-// ============================================================================
-
-/**
- * Compute the natural position after `weeks` rotations.
- * Modelled as: group shift = weeks + floor(weeks/5)
- *              row   shift = -weeks
- */
-function naturalPosition(initGroup, initRow, weeks) {
-  const specialWeeks = Math.floor(weeks / 5);
-  const groupShift = weeks + specialWeeks;
-  const rowShift = -weeks;
-
-  const g = ((initGroup - 1 + groupShift) % NUM_GROUPS + NUM_GROUPS) % NUM_GROUPS + 1;
-  const r = ((initRow - 1 + rowShift) % NUM_ROWS + NUM_ROWS) % NUM_ROWS + 1;
-  return { group: g, row: r };
-}
-
-/**
- * Get all desk positions for a given week.
- * Returns array of { id, students, group, row, isFixed, isAlone }
- */
-function getDeskPositions(weekNum) {
-  const desks = buildInitialDesks();
-  const positions = desks.map(d => {
-    const nat = naturalPosition(d.initGroup, d.initRow, weekNum);
-    return {
-      ...d,
-      group: d.isFixed ? d.initGroup : nat.group,
-      row: d.isFixed ? d.initRow : nat.row,
-      naturalGroup: nat.group,
-      naturalRow: nat.row,
-    };
-  });
-
-  // Resolve collision: if a non-fixed desk lands on (4,1), swap it with
-  // the fixed desk's natural position.
-  const fixedDesk = positions.find(d => d.isFixed);
-  const collider = positions.find(d =>
-    !d.isFixed && d.group === fixedDesk.initGroup && d.row === fixedDesk.initRow
-  );
-
-  if (collider) {
-    collider.group = fixedDesk.naturalGroup;
-    collider.row = fixedDesk.naturalRow;
-  }
-
-  return positions;
-}
-
-// ============================================================================
-//  Verification: in any 10-week window, every rotating student visits all rows
-//  (Row always shifts -1/week → in 5 consecutive weeks all 5 rows are visited.)
-// ============================================================================
-function verifyRowCoverage(desk, maxWeeks) {
-  // Check that in any 10-week sliding window, this desk visits all 5 rows
-  const rows = [];
-  for (let w = 0; w <= maxWeeks; w++) {
-    const pos = naturalPosition(desk.initGroup, desk.initRow, w);
-    rows.push(pos.row);
-  }
-  for (let start = 0; start + 9 < rows.length; start++) {
-    const windowRows = new Set(rows.slice(start, start + 10));
-    if (windowRows.size < NUM_ROWS) {
-      return { ok: false, start, rows: rows.slice(start, start + 10) };
-    }
-  }
-  return { ok: true };
-}
-
-// ============================================================================
-//  Date / Week helpers
-// ============================================================================
-function getSemesterStart() {
-  const stored = localStorage.getItem('seat-semester-start');
-  if (stored) return new Date(stored + 'T00:00:00');
-  return new Date('2026-09-01T00:00:00');
-}
-
-function setSemesterStart(date) {
-  localStorage.setItem('seat-semester-start', date.toISOString().slice(0, 10));
-}
-
-function getWeekNumber(date, semesterStart) {
-  const diffMs = date.getTime() - semesterStart.getTime();
-  return Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
-}
-
-function getWeekStartDate(weekNum, semesterStart) {
-  const d = new Date(semesterStart);
-  d.setDate(d.getDate() + weekNum * 7);
-  return d;
-}
-
-function formatDate(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-function toDateString(date) {
-  return date.toISOString().slice(0, 10);
-}
-
-// ============================================================================
-//  Student names (persisted)
-// ============================================================================
-function getDefaultNames() {
-  return { ...STUDENT_NAMES };
-}
-
-function loadNames() {
-  try {
-    const raw = localStorage.getItem('seat-student-names');
-    if (raw) return { ...getDefaultNames(), ...JSON.parse(raw) };
-  } catch (e) { /* ignore */ }
-  return getDefaultNames();
-}
-
-function saveName(id, name) {
-  const names = loadNames();
-  names[id] = name;
-  localStorage.setItem('seat-student-names', JSON.stringify(names));
-}
-
-function getStudentName(id) {
-  if (id === null) return '';
-  if (id === VIRTUAL_STUDENT) return '(空)';
-  const names = loadNames();
-  return names[id] || `${id}号`;
-}
+// 核心逻辑(名单 / 轮换 / 换座记录 / 日期工具)已抽到 shared.js
 
 // ============================================================================
 //  Render
@@ -693,7 +481,10 @@ let currentSemesterStart = getSemesterStart();
 
 function render(weekNum) {
   currentWeekNum = weekNum;
-  const positions = getDeskPositions(weekNum);
+  const weekStart = getWeekStartDate(weekNum, currentSemesterStart);
+  const dateStr = formatDate(weekStart);
+  const positions = getDeskPositionsForDate(dateStr);
+  const arrangement = getArrangementForDate(dateStr);
 
   // Build grid lookup: group x row → desk
   const grid = {};
@@ -763,20 +554,20 @@ function render(weekNum) {
 
   // Update header
   document.getElementById('weekDisplay').textContent = `第 ${weekNum} 周`;
-
-  const weekStart = getWeekStartDate(weekNum, currentSemesterStart);
   document.getElementById('datePicker').value = toDateString(weekStart);
 
   // Update info bar
   const infoBar = document.getElementById('infoBar');
-  const totalStudents = 48;
-  const specialWeeks = Math.floor(Math.abs(weekNum) / 5);
+  const specialWeeks = Math.floor(Math.abs(weeksBetween(arrangement.baselineStart, dateStr)) / 5);
+  const overrideBadge = arrangement.isOverride
+    ? `<span class="badge cycle">🔧 手动换座：自 ${arrangement.baselineStart} 起</span>` : '';
   infoBar.innerHTML = `
     <span>📅 学期开始：${formatDate(currentSemesterStart)}</span>
     <span>📐 本周起始：${formatDate(weekStart)}</span>
     <span class="badge fixed">★ ${getStudentName(FIXED_STUDENT)} 固定在4组1排</span>
     <span class="badge alone">◎ ${getStudentName(ALONE_STUDENT)} 单人单座</span>
     <span class="badge cycle">🔄 已打破 ${specialWeeks} 次循环</span>
+    ${overrideBadge}
   `;
 }
 

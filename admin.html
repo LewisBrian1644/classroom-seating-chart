@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>班级座位表 · 管理员换座</title>
+<script src="shared.js"></script>
+<style>
+/* ============ CSS Variables ============ */
+:root {
+  --color-bg: #f5f3ef;
+  --color-surface: #ffffff;
+  --color-text: #2c2c2c;
+  --color-text-secondary: #6b6b6b;
+  --color-border: #e0dcd5;
+  --color-accent: #4a7c96;
+  --color-accent-hover: #3a6678;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.1);
+  --font-sans: "PingFang SC","Microsoft YaHei","Helvetica Neue",sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+body {
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+#app {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 20px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.header {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 16px 20px; background: var(--color-surface);
+  border-radius: 14px; box-shadow: var(--shadow-sm);
+}
+.header-title { font-size: 1.3rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.header-title .icon { font-size: 1.5rem; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  padding: 8px 16px; border: 1px solid var(--color-border); border-radius: 8px;
+  background: var(--color-surface); color: var(--color-text);
+  font-size: 0.9rem; font-family: inherit; cursor: pointer; transition: all 0.15s;
+  white-space: nowrap; user-select: none; text-decoration: none;
+}
+.btn:hover { background: #f8f7f4; border-color: #c5bfb2; }
+.btn:active { transform: scale(0.97); }
+.btn.primary { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
+.btn.primary:hover { background: var(--color-accent-hover); }
+
+.date-input {
+  padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 8px;
+  font-size: 0.9rem; font-family: inherit; background: var(--color-surface); color: var(--color-text);
+  outline: none; transition: border-color 0.15s;
+}
+.date-input:focus { border-color: var(--color-accent); }
+
+.card {
+  display: flex; flex-direction: column; gap: 14px; padding: 16px 20px;
+  background: var(--color-surface); border-radius: 12px; box-shadow: var(--shadow-sm);
+}
+
+.settings-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.settings-row label { font-size: 0.85rem; font-weight: 600; min-width: 100px; }
+
+.admin-status { font-size: 0.85rem; color: var(--color-text-secondary); min-height: 1.2em; }
+.admin-status.ok { color: #3d6b4f; }
+.admin-status.err { color: #b0433a; }
+
+.admin-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.admin-grid { overflow-x: auto; }
+.admin-grid-table { display: grid; grid-template-columns: auto repeat(5, 1fr); gap: 6px; min-width: 560px; }
+.admin-corner { grid-column: 1; }
+.admin-col-label, .admin-row-label {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; font-weight: 600; color: var(--color-text-secondary);
+}
+.admin-desk {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 6px;
+  border: 1px solid var(--color-border); border-radius: 8px; background: #faf9f7;
+}
+.admin-desk input {
+  width: 100%; min-width: 0; padding: 5px 6px; border: 1px solid var(--color-border);
+  border-radius: 5px; font-size: 0.8rem; font-family: inherit; text-align: center; outline: none;
+}
+.admin-desk input:focus { border-color: var(--color-accent); }
+.admin-desk input.unmatched { border-color: #c0392b; background: #fdecea; }
+
+.admin-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.admin-changes { display: flex; flex-direction: column; gap: 6px; }
+.admin-change-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 12px; background: #f8f7f4; border-radius: 8px; font-size: 0.85rem;
+}
+.admin-change-row .del { margin-left: auto; }
+
+.hint { font-size: 0.82rem; color: var(--color-text-secondary); }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="header">
+    <div class="header-title"><span class="icon">🔧</span> 管理员换座</div>
+    <a class="btn" href="index.html">← 返回座位表</a>
+  </div>
+
+  <div class="card">
+    <div class="settings-row">
+      <label for="adminStartDate">新座位起始日期</label>
+      <input type="date" class="date-input" id="adminStartDate">
+      <span class="hint">（按周生效，自动对齐到该周第一天）</span>
+    </div>
+    <div class="settings-row">
+      <label for="adminFile">上传文件</label>
+      <input type="file" class="date-input" id="adminFile" accept=".xlsx,.xls,.pdf">
+    </div>
+    <div class="admin-status" id="adminStatus">上传 .xlsx/.xls（Excel 表格网格）或文字版 .pdf 自动识别填充；也可直接在网格里改名字（改名）、清空（移除）或输入新名字（新增学生）。</div>
+    <div class="admin-tools">
+      <button class="btn" id="adminFlipH">⇆ 左右翻转</button>
+      <button class="btn" id="adminFlipV">⇅ 上下翻转</button>
+      <button class="btn" id="adminClear">清空</button>
+      <button class="btn" id="adminReset">恢复当前座位</button>
+    </div>
+    <div class="admin-grid">
+      <div class="admin-grid-table" id="adminGrid"></div>
+    </div>
+    <div class="hint">网格对应：列 = 第1~5组（左→右为第5组到第1组），行 = 第1~5排。每桌两个姓名框，左/右为同桌两人。</div>
+    <div class="admin-actions">
+      <button class="btn primary" id="adminSave">✅ 确认并保存换座</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="hint">已保存的换座记录（点删除可撤销）：</div>
+    <div class="admin-changes" id="adminChangesList"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================================
+//  管理员换座 — 解析 / 识别 / 保存(依赖 shared.js 中的名单与存储逻辑)
+// ============================================================================
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function setAdminStatus(msg, type) {
+  const el = document.getElementById('adminStatus');
+  el.textContent = msg;
+  el.className = 'admin-status' + (type ? ' ' + type : '');
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('库加载失败: ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+async function ensureXLSX() {
+  if (window.XLSX) return window.XLSX;
+  await loadScript('https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js');
+  return window.XLSX;
+}
+
+async function ensurePdfJs() {
+  if (window.pdfjsLib) return window.pdfjsLib;
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  return window.pdfjsLib;
+}
+
+// --- 可编辑网格状态: adminGrid[group][row] = { left, right } ---
+// adminGridOrigin 记录每个座位格子原本对应的学生 ID(用于「改名」判断)
+let adminGrid = {};
+let adminGridOrigin = {};
+
+function setOrigin(g, r, seat, id) {
+  adminGridOrigin[`${g},${r},${seat}`] = (id === null || id === undefined || id === VIRTUAL_STUDENT) ? null : id;
+}
+
+function initAdminGridEmpty() {
+  adminGrid = {};
+  adminGridOrigin = {};
+  for (let g = 1; g <= 5; g++) {
+    adminGrid[g] = {};
+    for (let r = 1; r <= 5; r++) {
+      adminGrid[g][r] = { left: '', right: '' };
+      setOrigin(g, r, 'left', null);
+      setOrigin(g, r, 'right', null);
+    }
+  }
+}
+
+function renderAdminGrid() {
+  const el = document.getElementById('adminGrid');
+  let html = '<div class="admin-corner"></div>';
+  for (let g = 5; g >= 1; g--) html += `<div class="admin-col-label">第${g}组</div>`;
+  for (let r = 1; r <= 5; r++) {
+    html += `<div class="admin-row-label">第${r}排</div>`;
+    for (let g = 5; g >= 1; g--) {
+      const cell = adminGrid[g][r];
+      html += `<div class="admin-desk" data-g="${g}" data-r="${r}">
+        <input data-seat="left" value="${esc(cell.left)}" placeholder="左">
+        <input data-seat="right" value="${esc(cell.right)}" placeholder="右">
+      </div>`;
+    }
+  }
+  el.innerHTML = html;
+  highlightUnmatched();
+}
+
+function readAdminGrid() {
+  for (let g = 1; g <= 5; g++) {
+    for (let r = 1; r <= 5; r++) {
+      const leftEl = document.querySelector(`.admin-desk[data-g="${g}"][data-r="${r}"] input[data-seat="left"]`);
+      const rightEl = document.querySelector(`.admin-desk[data-g="${g}"][data-r="${r}"] input[data-seat="right"]`);
+      if (leftEl) adminGrid[g][r].left = leftEl.value.trim();
+      if (rightEl) adminGrid[g][r].right = rightEl.value.trim();
+    }
+  }
+}
+
+function populateAdminGridFromPositions(positions) {
+  initAdminGridEmpty();
+  const grid = {};
+  for (const d of positions) grid[`${d.group},${d.row}`] = d;
+  for (let g = 1; g <= 5; g++) {
+    for (let r = 1; r <= 5; r++) {
+      const d = grid[`${g},${r}`];
+      if (d) {
+        adminGrid[g][r].left = getRawStudentName(d.students[0]);
+        adminGrid[g][r].right = getRawStudentName(d.students[1]);
+        setOrigin(g, r, 'left', d.students[0]);
+        setOrigin(g, r, 'right', d.students[1]);
+      }
+    }
+  }
+  renderAdminGrid();
+}
+
+function resetAdminToCurrent() {
+  const today = new Date();
+  populateAdminGridFromPositions(getDeskPositionsForDate(formatDate(today)));
+  setAdminStatus('已恢复为今天当前生效的座位,可在此基础上修改。');
+}
+
+function flipAdminH() {
+  readAdminGrid();
+  for (let r = 1; r <= 5; r++) {
+    const tmp = {};
+    const tmpL = {};
+    const tmpR = {};
+    for (let g = 1; g <= 5; g++) {
+      tmp[g] = { ...adminGrid[g][r] };
+      tmpL[g] = adminGridOrigin[`${g},${r},left`];
+      tmpR[g] = adminGridOrigin[`${g},${r},right`];
+    }
+    for (let g = 1; g <= 5; g++) {
+      adminGrid[6 - g][r] = tmp[g];
+      adminGridOrigin[`${6 - g},${r},left`] = tmpL[g];
+      adminGridOrigin[`${6 - g},${r},right`] = tmpR[g];
+    }
+  }
+  renderAdminGrid();
+}
+
+function flipAdminV() {
+  readAdminGrid();
+  for (let g = 1; g <= 5; g++) {
+    const tmp = {};
+    const tmpL = {};
+    const tmpR = {};
+    for (let r = 1; r <= 5; r++) {
+      tmp[r] = { ...adminGrid[g][r] };
+      tmpL[r] = adminGridOrigin[`${g},${r},left`];
+      tmpR[r] = adminGridOrigin[`${g},${r},right`];
+    }
+    for (let r = 1; r <= 5; r++) {
+      adminGrid[g][6 - r] = tmp[r];
+      adminGridOrigin[`${g},${6 - r},left`] = tmpL[r];
+      adminGridOrigin[`${g},${6 - r},right`] = tmpR[r];
+    }
+  }
+  renderAdminGrid();
+}
+
+function clearAdminGrid() {
+  initAdminGridEmpty();
+  renderAdminGrid();
+}
+
+function splitTwo(s) {
+  s = (s || '').trim();
+  if (!s) return ['', ''];
+  const parts = s.split(/[/、,，;；\s]+/).filter(Boolean);
+  if (parts.length >= 2) return [parts[0], parts[1]];
+  return [s, ''];
+}
+
+// 归一化原始二维网格:去掉空行/空列与表头行/列(如「第1组」「第1排」)
+function normalizeGrid(rows) {
+  rows = (rows || []).map(r => (r || []).map(c => String(c == null ? '' : c).trim()));
+  rows = rows.filter(r => r.some(c => c !== ''));
+  if (!rows.length) return [];
+
+  const labelRe = /^(第?\d*[排组行列]|讲台|黑板|座位表|座位|讲桌|备注)/;
+  const isLabelCell = c => c !== '' && labelRe.test(c);
+
+  let grid = rows.filter(r => {
+    const cells = r.filter(c => c !== '');
+    return cells.length === 0 || !cells.every(isLabelCell);
+  });
+  if (!grid.length) return [];
+
+  const colCount = Math.max(...grid.map(r => r.length));
+  const keep = [];
+  for (let ci = 0; ci < colCount; ci++) {
+    const colCells = grid.map(r => r[ci] || '').filter(c => c !== '');
+    const isLabelCol = colCells.length > 0 && colCells.every(isLabelCell);
+    if (colCells.length > 0 && !isLabelCol) keep.push(ci);
+  }
+  return grid.map(r => keep.map(ci => r[ci] || ''));
+}
+
+async function parseExcelToGrid(buffer) {
+  const XLSX = await ensureXLSX();
+  const wb = XLSX.read(buffer, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+  return normalizeGrid(rows);
+}
+
+function clusterPdfItems(items) {
+  const sorted = [...items].sort((a, b) => b.y - a.y);
+  const rows = [];
+  for (const it of sorted) {
+    let placed = false;
+    for (const row of rows) {
+      if (Math.abs(row.y - it.y) < 9) {
+        row.items.push(it);
+        row.y = row.items.reduce((s, x) => s + x.y, 0) / row.items.length;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) rows.push({ y: it.y, items: [it] });
+  }
+  const grid = [];
+  for (const row of rows) {
+    row.items.sort((a, b) => a.x - b.x);
+    const cells = [];
+    for (const it of row.items) {
+      const last = cells[cells.length - 1];
+      if (last && it.x - last.x < 14) last.str += ' ' + it.str;
+      else cells.push({ x: it.x, str: it.str });
+    }
+    grid.push(cells.map(c => c.str));
+  }
+  return grid;
+}
+
+async function parsePdfToGrid(buffer) {
+  const pdfjs = await ensurePdfJs();
+  const pdf = await pdfjs.getDocument({ data: buffer }).promise;
+  const page = await pdf.getPage(1);
+  const tc = await page.getTextContent();
+  const items = tc.items
+    .filter(it => it.str && it.str.trim())
+    .map(it => ({ str: it.str.trim(), x: it.transform[4], y: it.transform[5] }));
+  if (!items.length) throw new Error('该 PDF 没有可提取的文字,可能不是文字版 PDF');
+  return normalizeGrid(clusterPdfItems(items));
+}
+
+function fillAdminGridFromNames2D(grid) {
+  initAdminGridEmpty();
+  if (!grid.length) { renderAdminGrid(); return; }
+  const nameToId = buildNameToIdMap();
+  const R = grid.length;
+  const C = Math.max(...grid.map(r => r.length));
+  for (let r = 1; r <= 5; r++) {
+    for (let g = 1; g <= 5; g++) {
+      let left = '', right = '';
+      if (R === 5 && C === 10) {
+        const c0 = (g - 1) * 2, c1 = c0 + 1;
+        left = (grid[r - 1] && grid[r - 1][c0]) || '';
+        right = (grid[r - 1] && grid[r - 1][c1]) || '';
+      } else if (R === 10 && C === 5) {
+        const rr = (r - 1) * 2;
+        left = (grid[rr] && grid[rr][g - 1]) || '';
+        right = (grid[rr + 1] && grid[rr + 1][g - 1]) || '';
+      } else {
+        const srcR = Math.min(r - 1, R - 1);
+        const srcC = Math.min(g - 1, C - 1);
+        const cell = (grid[srcR] && grid[srcR][srcC]) || '';
+        const parts = splitTwo(cell);
+        left = parts[0]; right = parts[1];
+      }
+      adminGrid[g][r].left = left;
+      adminGrid[g][r].right = right;
+      setOrigin(g, r, 'left', left ? (nameToId[left] || null) : null);
+      setOrigin(g, r, 'right', right ? (nameToId[right] || null) : null);
+    }
+  }
+  renderAdminGrid();
+}
+
+function highlightUnmatched() {
+  const nameToId = buildNameToIdMap();
+  document.querySelectorAll('#adminGrid input').forEach(inp => {
+    const v = inp.value.trim();
+    inp.classList.toggle('unmatched', !!v && !nameToId[v]);
+  });
+}
+
+async function handleAdminFile(file) {
+  if (!file) return;
+  setAdminStatus('正在读取并识别文件…');
+  try {
+    const name = file.name.toLowerCase();
+    const buf = await file.arrayBuffer();
+    let grid;
+    if (name.endsWith('.pdf')) grid = await parsePdfToGrid(buf);
+    else grid = await parseExcelToGrid(buf);
+    fillAdminGridFromNames2D(grid);
+    setAdminStatus('识别完成。请核对下方座位(红色边框 = 名字不在名单中,请改正或留空),确认后点「保存」。', 'ok');
+  } catch (e) {
+    setAdminStatus('解析失败:' + (e && e.message ? e.message : e), 'err');
+  }
+}
+
+function saveAdminArrangement() {
+  readAdminGrid();
+  const startDate = snapToWeekStart(document.getElementById('adminStartDate').value);
+  if (!startDate) { setAdminStatus('请先选择新座位的起始日期。', 'err'); return; }
+
+  const nameToId = buildNameToIdMap();
+  const finalIds = {};       // name → id(本次保存解析结果)
+  const renames = [];        // { id, newName }
+  const usedIds = new Set(); // 已被「改名」占用的原学生 ID,避免重复使用
+  const newNames = new Set();
+
+  // 第一遍:名字在名单里 → 直接用其 ID;不在名单里 → 看该座位原来是谁
+  for (let g = 1; g <= 5; g++) {
+    for (let r = 1; r <= 5; r++) {
+      const cell = adminGrid[g][r];
+      for (const seat of ['left', 'right']) {
+        const name = cell[seat];
+        if (!name) continue;
+        if (nameToId[name]) {
+          finalIds[name] = nameToId[name];
+        } else {
+          const originId = adminGridOrigin[`${g},${r},${seat}`];
+          if (originId != null && !usedIds.has(originId)) {
+            renames.push({ id: originId, newName: name });
+            usedIds.add(originId);
+            finalIds[name] = originId;
+          } else {
+            newNames.add(name);
+          }
+        }
+      }
+    }
+  }
+
+  // 执行改名
+  for (const rn of renames) saveName(rn.id, rn.newName);
+
+  // 新增学生(需确认)
+  if (newNames.size) {
+    const ok = confirm('检测到名单之外的新姓名:\n' + [...newNames].join('、') + '\n\n将作为新学生加入名单并保存。确定?');
+    if (!ok) { setAdminStatus('已取消保存,可继续修改。', 'err'); return; }
+    for (const n of newNames) finalIds[n] = addStudent(n);
+  }
+
+  // 构建 desks
+  const desks = [];
+  let id = 0;
+  for (let g = 1; g <= 5; g++) {
+    for (let r = 1; r <= 5; r++) {
+      const cell = adminGrid[g][r];
+      const leftId = cell.left ? finalIds[cell.left] : null;
+      const rightId = cell.right ? finalIds[cell.right] : null;
+      desks.push({ id: id++, students: [leftId, rightId], initGroup: g, initRow: r, isFixed: false, isAlone: false });
+    }
+  }
+
+  // 特殊学生:固定生 / 单人座强制保持单人(去掉同桌)
+  for (const d of desks) {
+    if (d.students.indexOf(FIXED_STUDENT) >= 0) { d.isFixed = true; d.students = [FIXED_STUDENT, null]; }
+    if (d.students.indexOf(ALONE_STUDENT) >= 0) { d.isAlone = true; d.students = [ALONE_STUDENT, null]; }
+  }
+
+  const seen = {};
+  const duplicates = new Set();
+  for (const d of desks) {
+    for (const sid of d.students) {
+      if (sid === null || sid === undefined) continue;
+      if (seen[sid]) duplicates.add(sid);
+      seen[sid] = true;
+    }
+  }
+  if (duplicates.size) {
+    setAdminStatus('无法保存:以下学生重复出现 — ' + [...duplicates].map(getStudentName).join('、'), 'err');
+    return;
+  }
+
+  // 缺失检测(使用完整学生名单,含新建/改名)
+  const allIds = Object.keys(loadNames()).map(Number).filter(x => x !== VIRTUAL_STUDENT);
+  const placed = new Set(desks.flatMap(d => d.students.filter(s => s !== null && s !== undefined)));
+  const missing = allIds.filter(x => !placed.has(x));
+  const usedSeats = desks.reduce((n, d) => n + d.students.filter(s => s !== null).length, 0);
+
+  addChange({ startDate, desks, note: '手动换座' });
+  if (missing.length) {
+    setAdminStatus(`已保存。注意:以下学生未安排座位 — ${missing.map(getStudentName).join('、')}`, 'ok');
+  } else {
+    setAdminStatus(`已保存。自 ${startDate} 起使用新座位(共 ${usedSeats} 人)。`, 'ok');
+  }
+  refreshAdminChangesList();
+}
+
+function refreshAdminChangesList() {
+  const el = document.getElementById('adminChangesList');
+  const changes = getChanges();
+  if (!changes.length) {
+    el.innerHTML = '<div class="hint" style="color:#bbb;">暂无换座记录(使用默认自动轮换)</div>';
+    return;
+  }
+  el.innerHTML = changes.map((c, i) => {
+    const count = (c.desks || []).reduce((n, d) => n + (d.students || []).filter(s => s !== null && s !== undefined).length, 0);
+    return `<div class="admin-change-row">
+      <span>📅 ${c.startDate} 起 · ${count} 人</span>
+      <button class="btn del" data-idx="${i}">删除</button>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      removeChange(Number(btn.dataset.idx));
+      refreshAdminChangesList();
+      setAdminStatus('已删除该换座记录。');
+    });
+  });
+}
+
+function init() {
+  document.getElementById('adminStartDate').value = snapToWeekStart(formatDate(new Date()));
+
+  // 打开时以「今天当前生效的座位」为初始内容
+  try {
+    populateAdminGridFromPositions(getDeskPositionsForDate(formatDate(new Date())));
+  } catch (e) {
+    initAdminGridEmpty();
+    renderAdminGrid();
+  }
+  refreshAdminChangesList();
+
+  document.getElementById('adminFile').addEventListener('change', (e) => {
+    handleAdminFile(e.target.files[0]);
+    e.target.value = '';
+  });
+  document.getElementById('adminFlipH').addEventListener('click', flipAdminH);
+  document.getElementById('adminFlipV').addEventListener('click', flipAdminV);
+  document.getElementById('adminClear').addEventListener('click', clearAdminGrid);
+  document.getElementById('adminReset').addEventListener('click', resetAdminToCurrent);
+  document.getElementById('adminSave').addEventListener('click', saveAdminArrangement);
+
+  document.getElementById('adminGrid').addEventListener('input', (e) => {
+    if (e.target.matches('input')) {
+      const desk = e.target.closest('.admin-desk');
+      adminGrid[Number(desk.dataset.g)][Number(desk.dataset.r)][e.target.dataset.seat] = e.target.value.trim();
+      highlightUnmatched();
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+
+</body>
+</html>

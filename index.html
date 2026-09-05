@@ -209,7 +209,7 @@ body {
 .seat-grid {
   display: grid;
   grid-template-columns: auto repeat(5, 1fr);
-  grid-template-rows: auto repeat(5, 1fr);
+  grid-template-rows: auto repeat(6, 1fr);
   gap: 8px;
   min-width: 540px;
 }
@@ -435,8 +435,7 @@ body {
       <div class="legend-item"><div class="legend-dot" style="background:var(--group-3);border-color:var(--group-3-border)"></div> 第3组</div>
       <div class="legend-item"><div class="legend-dot" style="background:var(--group-2);border-color:var(--group-2-border)"></div> 第2组</div>
       <div class="legend-item"><div class="legend-dot" style="background:var(--group-1);border-color:var(--group-1-border)"></div> 第1组</div>
-      <div class="legend-item" style="margin-left:8px;">★ 固定座位</div>
-      <div class="legend-item">◎ 单人单座</div>
+      <div class="legend-item" style="margin-left:8px;">◎ 单人单座</div>
     </div>
   </div>
 
@@ -453,7 +452,7 @@ body {
   </div>
 
   <div class="footer">
-    换座规则：每周组号+1，排号-1 · 每第5周组号额外+1（打破循环）· 任意10周内坐遍1-5排
+    换座规则：每周组号+1，排号-1 · 第1排回绕到第6排 · 3个例外跳第2组
     <div style="margin-top:6px;"><a href="admin.html" style="color:#bbb;">🔧 管理员入口</a></div>
   </div>
 </div>
@@ -526,13 +525,9 @@ function render(weekNum) {
       const rightName = getStudentName(rightStudent);
 
       // Determine special classes
-      const leftClass = leftStudent === FIXED_STUDENT ? ' special'
-        : leftStudent === ALONE_STUDENT ? ' alone'
+      const leftClass = desk.isAlone && leftStudent !== null ? ' alone'
         : leftStudent === null ? ' empty' : '';
-      const rightClass = rightStudent === FIXED_STUDENT ? ' special'
-        : rightStudent === ALONE_STUDENT ? ' alone'
-        : rightStudent === VIRTUAL_STUDENT ? ' empty'
-        : rightStudent === null ? ' empty' : '';
+      const rightClass = rightStudent === null ? ' empty' : '';
 
       const leftClick = (leftStudent && leftStudent !== VIRTUAL_STUDENT)
         ? `onclick="editStudent(${leftStudent})"` : '';
@@ -559,15 +554,16 @@ function render(weekNum) {
 
   // Update info bar
   const infoBar = document.getElementById('infoBar');
-  const specialWeeks = Math.floor(Math.abs(weeksBetween(arrangement.baselineStart, dateStr)) / 5);
+  const singleNames = buildInitialDesks()
+    .filter(d => d.isAlone)
+    .map(d => getStudentName(d.students[0]))
+    .join('、');
   const overrideBadge = arrangement.isOverride
     ? `<span class="badge cycle">🔧 手动换座：自 ${arrangement.baselineStart} 起</span>` : '';
   infoBar.innerHTML = `
     <span>📅 学期开始：${formatDate(currentSemesterStart)}</span>
     <span>📐 本周起始：${formatDate(weekStart)}</span>
-    <span class="badge fixed">★ ${getStudentName(FIXED_STUDENT)} 固定在4组1排</span>
-    <span class="badge alone">◎ ${getStudentName(ALONE_STUDENT)} 单人单座</span>
-    <span class="badge cycle">🔄 已打破 ${specialWeeks} 次循环</span>
+    <span class="badge alone">◎ 单人座：${singleNames}</span>
     ${overrideBadge}
   `;
 }
@@ -690,19 +686,12 @@ async function init() {
     }
   });
 
-  // Verify row coverage
-  const desks = buildInitialDesks();
-  let allOk = true;
-  for (const d of desks) {
-    if (d.isFixed) continue; // Fixed student doesn't rotate
-    const result = verifyRowCoverage(d, 50);
-    if (!result.ok) {
-      console.warn(`Desk (${d.initGroup},${d.initRow}) fails row coverage at week ${result.start}`);
-      allOk = false;
-    }
-  }
-  if (allOk) {
-    console.log('✅ Row coverage verified: all rotating students visit all 5 rows in any 10-week window.');
+  // Verify rotation stays within valid desks
+  const verify = verifyRotation(100);
+  if (verify.ok) {
+    console.log('✅ 轮换校验通过：100 周内每桌都落在有效桌位内。');
+  } else {
+    console.warn(`⚠ 轮换出界：桌(${verify.desk.initGroup},${verify.desk.initRow}) 第${verify.week}周 -> (${verify.pos.group},${verify.pos.row})`);
   }
 }
 

@@ -149,8 +149,9 @@ function rotateDesks(desks, weeks) {
     }
   }
 
-  // 5. 借坐分配:优先本组空位,否则第2组;借坐桌按自然排号从大到小排序
-  borrowers.sort((a, b) => (b.row - a.row) || (b.group - a.group));
+  // 5. 借坐分配:优先本组空位,否则第2组;借坐桌按归一化排号从小到大排序,
+  //    让前排的桌借前排空位、后排的桌借后排空位,保持前后相对顺序
+  borrowers.sort((a, b) => ((a.row + rowOffset(a.group)) - (b.row + rowOffset(b.group))) || (a.group - b.group));
   const remaining = free.slice();
   for (const b of borrowers) {
     const targetGroup = b.group; // 自然轨迹里它本应去的组

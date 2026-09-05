@@ -94,38 +94,24 @@ function buildInitialDesks() {
 }
 
 // ============================================================================
-//  轮换逻辑:每周 组号+1、排号-1(第1排往前回绕到第6排)。
-//  4 个例外,让全体串成一个 26 桌的大环(不出现小循环)。
-//  原则:某桌"组+1排-1"落到没位子的组时,先看下一个组是否真坐不下——
-//    第4组只有 5 桌,下一周第5组(5 桌)坐得下,所以第4组第2排不跳第2组,
-//    而是补进第5组空出的第5排;空桌(第4组第6排)则顺势流进第2组。
-//    只有第5组→第1组(5 桌挤 3 桌)才是真坐不下,这两桌才跳第2组:
-//    第4组第2排 → 第5组第5排
-//    第4组第6排 → 第2组第5排   (空桌)
-//    第5组第2排 → 第2组第4排
-//    第5组第6排 → 第2组第6排
-//  空桌(第4组第6排,初始无人坐)作为普通桌一起轮换,所以每周都恰好有
-//  一个空桌,但位置随周变化(不一定在第4组第6排)。
+//  轮换逻辑:每周只在本组内「排号-1」——前移一桌,本组最前排回绕到最后一排。
+//  组号固定不变(每组有小组长收作业,同一组的人始终留在本组,不换组)。
+//  示例(第5组 2/3/4/5/6 排):2→6、3→2、4→3、5→4、6→5。
+//    即最前排(第2排)回绕到最后排(第6排),最后排(第6排)前移到倒数第二排(第5排)。
+//  空桌(第4组第6排,初始无人坐)同样在本组内轮换,再由「填满」规则顶到最后一排。
 // ============================================================================
-function nextPosition(group, row) {
-  if (group === 4 && row === 2) return { group: 5, row: 5 };
-  if (group === 4 && row === 6) return { group: 2, row: 5 };
-  if (group === 5 && row === 2) return { group: 2, row: 4 };
-  if (group === 5 && row === 6) return { group: 2, row: 6 };
-  return {
-    group: (group % NUM_GROUPS) + 1,
-    row: row === 1 ? NUM_ROWS : row - 1,
-  };
+function nextRow(group, row) {
+  const rows = GROUP_ROWS[group];
+  const idx = rows.indexOf(row);
+  return idx === 0 ? rows[rows.length - 1] : rows[idx - 1];
 }
 
 function naturalPosition(initGroup, initRow, weeks) {
-  let g = initGroup, r = initRow;
+  let r = initRow;
   for (let w = 0; w < weeks; w++) {
-    const next = nextPosition(g, r);
-    g = next.group;
-    r = next.row;
+    r = nextRow(initGroup, r);
   }
-  return { group: g, row: r };
+  return { group: initGroup, row: r };
 }
 
 function rotateDesks(desks, weeks) {

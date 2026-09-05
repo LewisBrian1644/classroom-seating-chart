@@ -94,58 +94,103 @@ function buildInitialDesks() {
 }
 
 // ============================================================================
-//  轮换逻辑:每周只在本组内「排号-1」——前移一桌,本组最前排回绕到最后一排。
-//  组号固定不变(每组有小组长收作业,同一组的人始终留在本组,不换组)。
-//  示例(第5组 2/3/4/5/6 排):2→6、3→2、4→3、5→4、6→5。
-//    即最前排(第2排)回绕到最后排(第6排),最后排(第6排)前移到倒数第二排(第5排)。
-//  空桌(第4组第6排,初始无人坐)同样在本组内轮换,再由「填满」规则顶到最后一排。
+//  轮换逻辑:每周 组号+1、排号-1(第1排回绕到第6排)——自然轨迹是 30 大环。
+//  布局不规则,某桌按「组+1排-1」会落到没有该排的组 =「坐不下」,此时临时
+//  去有空位的组「借坐」;下一周仍按它本来的自然轨迹走(借坐只影响当周,
+//  不改变它下周的自然位置,即「下一周够坐就回到原来的组」)。
+//  空桌透明:空桌的自然位置可被借坐,空桌最后落到剩下的那个空位上。
 // ============================================================================
-function nextRow(group, row) {
-  const rows = GROUP_ROWS[group];
-  const idx = rows.indexOf(row);
-  return idx === 0 ? rows[rows.length - 1] : rows[idx - 1];
+function naturalNext(group, row) {
+  return { group: (group % NUM_GROUPS) + 1, row: row === 1 ? NUM_ROWS : row - 1 };
 }
 
 function naturalPosition(initGroup, initRow, weeks) {
-  let r = initRow;
+  let g = initGroup, r = initRow;
   for (let w = 0; w < weeks; w++) {
-    r = nextRow(initGroup, r);
+    const n = naturalNext(g, r);
+    g = n.group; r = n.row;
   }
-  return { group: initGroup, row: r };
+  return { group: g, row: r };
 }
 
 function rotateDesks(desks, weeks) {
+  // 1. 每桌按自然轨迹算位置(可能落到无效位置 = 坐不下)
   const positions = desks.map(d => {
     const nat = naturalPosition(d.initGroup, d.initRow, weeks);
     return { ...d, group: nat.group, row: nat.row };
   });
 
-  // 限制:若某组有空桌且不在该组最后一排,把其后的桌依次往前挪一桌,
-  // 把空桌顶到最后一排(学生向前填满,空桌始终留在最后)。
+  // 2. 空桌透明:单独拿出来,其自然位置也算空位
+  const emptyDesk = positions.find(d => d.students[0] === null && d.students[1] === null);
+  const occupied = positions.filter(d => d !== emptyDesk);
+
+  // 3. 自然位置有效的桌占住位置;无效的桌需要「借坐」
+  const taken = new Set();
+  const borrowers = [];
+  for (const d of occupied) {
+    if (hasDesk(d.group, d.row)) taken.add(d.group + ',' + d.row);
+    else borrowers.push(d);
+  }
+
+  // 4. 空位 = 所有有效位置中没被占住的(含空桌自然位置)
+  const free = [];
+  for (let g = 1; g <= NUM_GROUPS; g++) {
+    for (const r of GROUP_ROWS[g]) {
+      if (!taken.has(g + ',' + r)) free.push({ group: g, row: r });
+    }
+  }
+
+  // 5. 借坐分配:优先本组空位,否则第2组;借坐桌按自然排号从大到小排序
+  borrowers.sort((a, b) => (b.row - a.row) || (b.group - a.group));
+  const remaining = free.slice();
+  for (const b of borrowers) {
+    const targetGroup = b.group; // 自然轨迹里它本应去的组
+    let slot = remaining.find(f => f.group === targetGroup);
+    if (!slot) slot = remaining.find(f => f.group === 2);
+    if (!slot) slot = remaining[0];
+    if (slot) {
+      b.group = slot.group; b.row = slot.row;
+      remaining.splice(remaining.indexOf(slot), 1);
+    }
+  }
+
+  // 6. 空桌落到剩下的空位
+  if (emptyDesk && remaining.length) {
+    emptyDesk.group = remaining[0].group;
+    emptyDesk.row = remaining[0].row;
+  }
+
+  // 7. 填满规则:空桌不在最后一排,就把其后桌往前移,把空桌顶到最后一排
   for (let g = 1; g <= NUM_GROUPS; g++) {
     const rows = GROUP_ROWS[g];
     const lastRow = rows[rows.length - 1];
     const groupDesks = positions.filter(d => d.group === g);
-    const emptyDesk = groupDesks.find(d => d.students[0] === null && d.students[1] === null);
-    if (!emptyDesk || emptyDesk.row === lastRow) continue;
+    const e = groupDesks.find(d => d.students[0] === null && d.students[1] === null);
+    if (!e || e.row === lastRow) continue;
     for (const d of groupDesks) {
-      if (d !== emptyDesk && d.row > emptyDesk.row) d.row -= 1;
+      if (d !== e && d.row > e.row) d.row -= 1;
     }
-    emptyDesk.row = lastRow;
+    e.row = lastRow;
   }
 
   return positions;
 }
 
-// 校验:轮换后每桌都落在有效桌位上(不出界)
+// 校验:轮换后每桌都落在有效桌位上且不重叠
 function verifyRotation(maxWeeks) {
   const desks = buildInitialDesks();
   for (let w = 0; w <= maxWeeks; w++) {
-    for (const d of desks) {
-      const nat = naturalPosition(d.initGroup, d.initRow, w);
-      if (!hasDesk(nat.group, nat.row)) {
-        return { ok: false, desk: d, week: w, pos: nat };
+    const pos = rotateDesks(desks, w);
+    const seen = new Set();
+    for (const d of pos) {
+      if (!hasDesk(d.group, d.row)) {
+        return { ok: false, desk: d, week: w, pos: { group: d.group, row: d.row } };
       }
+      const k = d.group + ',' + d.row;
+      if (seen.has(k)) {
+        return { ok: false, desk: d, week: w, pos: { group: d.group, row: d.row } };
+      }
+      seen.add(k);
     }
   }
   return { ok: true };

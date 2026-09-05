@@ -95,13 +95,22 @@ function buildInitialDesks() {
 
 // ============================================================================
 //  轮换逻辑:每周 组号+1、排号-1(第1排回绕到第6排)——自然轨迹是 30 大环。
+//  第1组、第5组没有第1排(第2排才和其它组的第1排平齐),所以换座时把它们的
+//  排号整体减 1 再参与「排-1」,这样前排(第2排)回绕才正确。
 //  布局不规则,某桌按「组+1排-1」会落到没有该排的组 =「坐不下」,此时临时
 //  去有空位的组「借坐」;下一周仍按它本来的自然轨迹走(借坐只影响当周,
 //  不改变它下周的自然位置,即「下一周够坐就回到原来的组」)。
 //  空桌透明:空桌的自然位置可被借坐,空桌最后落到剩下的那个空位上。
 // ============================================================================
+function rowOffset(group) {
+  return (group === 1 || group === 5) ? -1 : 0;
+}
+
 function naturalNext(group, row) {
-  return { group: (group % NUM_GROUPS) + 1, row: row === 1 ? NUM_ROWS : row - 1 };
+  const nRow = row + rowOffset(group);                 // 归一化:第1/5组第2排 = 第1排
+  const newGroup = (group % NUM_GROUPS) + 1;
+  const newNRow = nRow === 1 ? NUM_ROWS : nRow - 1;    // 排-1,第1排回绕到第6排
+  return { group: newGroup, row: newNRow - rowOffset(newGroup) };
 }
 
 function naturalPosition(initGroup, initRow, weeks) {

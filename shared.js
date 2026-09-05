@@ -5,14 +5,27 @@
 // ============================================================================
 
 const NUM_GROUPS = 5;
-const NUM_ROWS = 5;
-const FIXED_STUDENT = 1;   // 鲁唐扬真 — 固定座位,单人
-const ALONE_STUDENT = 2;   // 王浩宇 — 单人单座
+const NUM_ROWS = 6;
 const VIRTUAL_STUDENT = 49;
 const CHANGES_KEY = 'seat-arrangement-changes';
+const UNSEATED_STUDENTS = [1]; // 鲁唐扬真 — 本学期不排座(表外)
+
+// 每组可用的排号(第1排=前排,靠后=第6排)
+// 第1组 2-4排 · 第2/3/4组 1-6排 · 第5组 2-6排(共26桌)
+const GROUP_ROWS = {
+  1: [2, 3, 4],
+  2: [1, 2, 3, 4, 5, 6],
+  3: [1, 2, 3, 4, 5, 6],
+  4: [1, 2, 3, 4, 5, 6],
+  5: [2, 3, 4, 5, 6],
+};
+
+function hasDesk(group, row) {
+  return (GROUP_ROWS[group] || []).includes(row);
+}
 
 // Student ID → name mapping for initial arrangement
-// IDs: 1=鲁唐扬真(fixed) 2=王浩宇(alone) 3-48=others row by row
+// 1=鲁唐扬真(本学期暂不排座,放表外)
 const STUDENT_NAMES = {
   1:'鲁唐扬真', 2:'王浩宇',
   3:'单俊杰', 4:'唐梓耀', 5:'周加灵', 6:'仝亚盈',
@@ -32,41 +45,43 @@ const STUDENT_NAMES = {
 
 // ============================================================================
 //  初始座位(第 0 周基准)
-//  鲁唐扬真(1号)固定在 4组1排;韩语哲/熊晨伊换到 (4,5) 腾出位置。
+//  布局:第1组 2-4排;第2/3/4组 1-6排;第5组 2-6排(共26桌)
+//  鲁唐扬真(1号)本学期不排座;王浩宇/仝亚盈/于阅 为单人座
 //  每桌: { students: [leftId, rightId], initGroup, initRow }
 // ============================================================================
 function buildInitialDesks() {
   const assignments = [
-    // Row 1 (front)
-    [1,1, [3,4]],                     // 单俊杰 / 唐梓耀
-    [2,1, [5,6]],                     // 周加灵 / 仝亚盈
-    [3,1, [7,8]],                     // 宋欣哲 / 邵振琦
-    [4,1, [FIXED_STUDENT, null]],     // 鲁唐扬真 — 固定单人
-    [5,1, [11,12]],                   // 黄启宸 / 马亚勋
-    // Row 2
-    [1,2, [13,14]],                   // 李彦节 / 杨曜铭
-    [2,2, [15,16]],                   // 车俊贤 / 李丞阳
-    [3,2, [17,18]],                   // 余芃澄 / 何炫毅
-    [4,2, [19,20]],                   // 李庭葳 / 桂钰欢
-    [5,2, [21,22]],                   // 蔡磊 / 王奕霖
-    // Row 3
-    [1,3, [23,24]],                   // 郑光朔 / 吴子墨
-    [2,3, [25,26]],                   // 贺奥凯 / 于昕呈
-    [3,3, [27,28]],                   // 刘耘松 / 鲍奕丞
-    [4,3, [29,30]],                   // 代一尘 / 王传栋
-    [5,3, [31,32]],                   // 李博文 / 杨李吉
-    // Row 4
-    [1,4, [33,34]],                   // 于阅 / 高若元
-    [2,4, [35,36]],                   // 杜卓航 / 刘一诺
-    [3,4, [ALONE_STUDENT, VIRTUAL_STUDENT]], // 王浩宇 — 单人
-    [4,4, [37,38]],                   // 郭振宇 / 周至柔
-    [5,4, [39,40]],                   // 陈柯璟 / 邓轶辰
-    // Row 5 (back)
-    [1,5, [41,42]],                   // 蒋滇粤 / 李梓维
-    [2,5, [43,44]],                   // 刘涛 / 代岑
-    [3,5, [45,46]],                   // 樊霖洁 / 隆竞瑶
-    [4,5, [9,10]],                    // 韩语哲 / 熊晨伊 (调换至此)
-    [5,5, [47,48]],                   // 叶恒铭 / 周钇寰
+    // 第1组 (2-4排)
+    [1, 2, [4, 39]],            // 唐梓耀 / 陈柯璟
+    [1, 3, [7, 43]],            // 宋欣哲 / 刘涛
+    [1, 4, [37, 40]],           // 郭振宇 / 邓轶辰
+    // 第2组 (1-6排)
+    [2, 1, [31, 22]],           // 李博文 / 王奕霖
+    [2, 2, [23, 38]],           // 郑光朔 / 周至柔
+    [2, 3, [5, 46]],            // 周加灵 / 隆竞瑶
+    [2, 4, [42, 28]],           // 李梓维 / 鲍奕丞
+    [2, 5, [19, 8]],            // 李庭葳 / 邵振琦
+    [2, 6, [11, 48]],           // 黄启宸 / 周钇寰
+    // 第3组 (1-6排)
+    [3, 1, [15, 24]],           // 车俊贤 / 吴子墨
+    [3, 2, [34, 3]],            // 高若元 / 单俊杰
+    [3, 3, [35, 45]],           // 杜卓航 / 樊霖洁
+    [3, 4, [32, 21]],           // 杨李吉 / 蔡磊
+    [3, 5, [29, 12]],           // 代一尘 / 马亚勋
+    [3, 6, [33, null]],         // 于阅 — 单人
+    // 第4组 (1-6排)
+    [4, 1, [17, 18]],           // 余芃澄 / 何炫毅
+    [4, 2, [26, 13]],           // 于昕呈 / 李彦节
+    [4, 3, [41, 30]],           // 蒋滇粤 / 王传栋
+    [4, 4, [6, null]],          // 仝亚盈 — 单人
+    [4, 5, [2, null]],          // 王浩宇 — 单人
+    [4, 6, [null, null]],       // 空桌(原鲁唐位)
+    // 第5组 (2-6排)
+    [5, 2, [9, 27]],            // 韩语哲 / 刘耘松
+    [5, 3, [16, 14]],           // 李丞阳 / 杨曜铭
+    [5, 4, [10, 36]],           // 熊晨伊 / 刘一诺
+    [5, 5, [44, 20]],           // 代岑 / 桂钰欢
+    [5, 6, [47, 25]],           // 叶恒铭 / 贺奥凯
   ];
 
   return assignments.map(([g, r, seats], i) => ({
@@ -74,49 +89,56 @@ function buildInitialDesks() {
     students: seats,
     initGroup: g,
     initRow: r,
-    isFixed: seats[0] === FIXED_STUDENT || seats[1] === FIXED_STUDENT,
-    isAlone: seats[0] === ALONE_STUDENT || seats[1] === ALONE_STUDENT,
+    isAlone: seats[0] !== null && seats[1] === null,
   }));
 }
 
 // ============================================================================
-//  轮换逻辑:每周 组号+1、排号-1;每第 5 周 组号额外 +1
+//  轮换逻辑:每周 组号+1、排号-1(第1排往前回绕到第6排)。
+//  3 个例外(目标组没位子,跳到第2组的空位):
+//    第4组第2排 → 第2组第4排
+//    第5组第2排 → 第2组第5排
+//    第5组第6排 → 第2组第6排
 // ============================================================================
-function naturalPosition(initGroup, initRow, weeks) {
-  const specialWeeks = Math.floor(weeks / 5);
-  const groupShift = weeks + specialWeeks;
-  const rowShift = -weeks;
+function nextPosition(group, row) {
+  if (group === 4 && row === 2) return { group: 2, row: 4 };
+  if (group === 5 && row === 2) return { group: 2, row: 5 };
+  if (group === 5 && row === 6) return { group: 2, row: 6 };
+  return {
+    group: (group % NUM_GROUPS) + 1,
+    row: row === 1 ? NUM_ROWS : row - 1,
+  };
+}
 
-  const g = ((initGroup - 1 + groupShift) % NUM_GROUPS + NUM_GROUPS) % NUM_GROUPS + 1;
-  const r = ((initRow - 1 + rowShift) % NUM_ROWS + NUM_ROWS) % NUM_ROWS + 1;
+function naturalPosition(initGroup, initRow, weeks) {
+  let g = initGroup, r = initRow;
+  for (let w = 0; w < weeks; w++) {
+    const next = nextPosition(g, r);
+    g = next.group;
+    r = next.row;
+  }
   return { group: g, row: r };
 }
 
 function rotateDesks(desks, weeks) {
-  const positions = desks.map(d => {
+  return desks.map(d => {
     const nat = naturalPosition(d.initGroup, d.initRow, weeks);
-    return {
-      ...d,
-      group: d.isFixed ? d.initGroup : nat.group,
-      row: d.isFixed ? d.initRow : nat.row,
-      naturalGroup: nat.group,
-      naturalRow: nat.row,
-    };
+    return { ...d, group: nat.group, row: nat.row };
   });
+}
 
-  // 冲突处理:若某个非固定桌落在固定桌的位置,与其自然位置对调
-  const fixedDesk = positions.find(d => d.isFixed);
-  if (fixedDesk) {
-    const collider = positions.find(d =>
-      !d.isFixed && d.group === fixedDesk.initGroup && d.row === fixedDesk.initRow
-    );
-    if (collider) {
-      collider.group = fixedDesk.naturalGroup;
-      collider.row = fixedDesk.naturalRow;
+// 校验:轮换后每桌都落在有效桌位上(不出界)
+function verifyRotation(maxWeeks) {
+  const desks = buildInitialDesks();
+  for (let w = 0; w <= maxWeeks; w++) {
+    for (const d of desks) {
+      const nat = naturalPosition(d.initGroup, d.initRow, w);
+      if (!hasDesk(nat.group, nat.row)) {
+        return { ok: false, desk: d, week: w, pos: nat };
+      }
     }
   }
-
-  return positions;
+  return { ok: true };
 }
 
 // ============================================================================
@@ -172,21 +194,6 @@ function getDeskPositionsForDate(dateStr) {
   const { desks, baselineStart } = getArrangementForDate(dateStr);
   const weeks = weeksBetween(baselineStart, dateStr);
   return rotateDesks(desks, Math.max(0, weeks));
-}
-
-function verifyRowCoverage(desk, maxWeeks) {
-  const rows = [];
-  for (let w = 0; w <= maxWeeks; w++) {
-    const pos = naturalPosition(desk.initGroup, desk.initRow, w);
-    rows.push(pos.row);
-  }
-  for (let start = 0; start + 9 < rows.length; start++) {
-    const windowRows = new Set(rows.slice(start, start + 10));
-    if (windowRows.size < NUM_ROWS) {
-      return { ok: false, start, rows: rows.slice(start, start + 10) };
-    }
-  }
-  return { ok: true };
 }
 
 // ============================================================================

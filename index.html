@@ -265,24 +265,6 @@ body {
 .desk[data-group="4"] { background: var(--group-4); border-color: var(--group-4-border); }
 .desk[data-group="5"] { background: var(--group-5); border-color: var(--group-5-border); }
 
-.desk.fixed-desk {
-  box-shadow: 0 0 0 3px rgba(220,150,30,0.45);
-  border-color: #d4942b !important;
-}
-.desk.fixed-desk::after {
-  content: "固定";
-  position: absolute;
-  top: -8px;
-  right: 4px;
-  font-size: 0.65rem;
-  background: #d4942b;
-  color: #fff;
-  padding: 1px 6px;
-  border-radius: 8px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
 /* Student tag */
 .student {
   flex: 1;
@@ -515,8 +497,6 @@ function render(weekNum) {
         continue;
       }
 
-      const fixedClass = desk.isFixed ? ' fixed-desk' : '';
-
       // Render two seats
       const leftStudent = desk.students[0];
       const rightStudent = desk.students[1];
@@ -539,7 +519,7 @@ function render(weekNum) {
         : rightStudent === null ? '(空)' : rightName;
 
       html += `
-        <div class="desk${fixedClass}" data-group="${g}">
+        <div class="desk" data-group="${g}">
           <div class="student${leftClass}" ${leftClick} title="${leftStudent ? '点击编辑 ' + leftName : ''}">${leftDisplay}</div>
           <div class="student${rightClass}" ${rightClick} title="${(rightStudent && rightStudent !== VIRTUAL_STUDENT) ? '点击编辑 ' + rightName : ''}">${rightDisplay}</div>
         </div>`;

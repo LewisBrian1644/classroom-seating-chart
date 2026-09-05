@@ -113,6 +113,19 @@ body {
 </head>
 <body>
 
+<!-- 管理员密码锁 -->
+<div id="adminLock" style="display:none; position:fixed; inset:0; background:var(--color-bg); z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:var(--color-surface); border-radius:14px; padding:28px 32px; box-shadow:0 4px 20px rgba(0,0,0,0.15); display:flex; flex-direction:column; gap:14px; min-width:300px; max-width:380px;">
+    <div style="font-weight:700; font-size:1.1rem;">🔒 管理员验证</div>
+    <div style="font-size:0.85rem; color:var(--color-text-secondary);">请输入管理员密码以进入换座页面。</div>
+    <input type="password" id="adminPasswordInput" style="padding:10px 12px; border:1px solid var(--color-border); border-radius:8px; font-size:1rem; outline:none; font-family:inherit;" placeholder="密码">
+    <div id="adminPasswordError" style="font-size:0.8rem; color:#b0433a; min-height:1em;"></div>
+    <div style="display:flex; gap:8px; justify-content:flex-end;">
+      <button class="btn primary" id="adminPasswordSubmit">进入</button>
+    </div>
+  </div>
+</div>
+
 <div id="app">
   <div class="header">
     <div class="header-title"><span class="icon">🔧</span> 管理员换座</div>
@@ -602,7 +615,58 @@ async function init() {
   });
 }
 
-document.addEventListener('DOMContentLoaded', init);
+// ============================================================================
+//  管理员密码锁(客户端门禁,密码在源码中可见,非强安全)
+// ============================================================================
+const ADMIN_PASSWORD = 'yaolong219';
+const ADMIN_AUTH_KEY = 'admin-authed';
+
+function adminAuthed() {
+  return sessionStorage.getItem(ADMIN_AUTH_KEY) === '1';
+}
+
+function showAdminLock() {
+  document.getElementById('adminLock').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+
+function hideAdminLock() {
+  document.getElementById('adminLock').style.display = 'none';
+  document.getElementById('app').style.display = '';
+}
+
+function tryAdminUnlock() {
+  const v = document.getElementById('adminPasswordInput').value;
+  if (v === ADMIN_PASSWORD) {
+    sessionStorage.setItem(ADMIN_AUTH_KEY, '1');
+    hideAdminLock();
+    runInit();
+  } else {
+    document.getElementById('adminPasswordError').textContent = '密码错误,请重试';
+    document.getElementById('adminPasswordInput').value = '';
+    document.getElementById('adminPasswordInput').focus();
+  }
+}
+
+let adminInited = false;
+function runInit() {
+  if (adminInited) return;
+  adminInited = true;
+  init();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('adminPasswordSubmit').addEventListener('click', tryAdminUnlock);
+  document.getElementById('adminPasswordInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') tryAdminUnlock();
+  });
+  if (adminAuthed()) {
+    hideAdminLock();
+    runInit();
+  } else {
+    showAdminLock();
+  }
+});
 </script>
 
 </body>

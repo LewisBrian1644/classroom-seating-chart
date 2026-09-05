@@ -139,7 +139,7 @@ body {
     <div class="admin-grid">
       <div class="admin-grid-table" id="adminGrid"></div>
     </div>
-    <div class="hint">网格对应：列 = 第1~5组（左→右为第5组到第1组），行 = 第1~5排。每桌两个姓名框，左/右为同桌两人。</div>
+    <div class="hint">网格对应：列 = 第1~5组（左→右为第5组到第1组），行 = 第1~6排。每桌两个姓名框，左/右为同桌两人。灰色格为无桌位。</div>
     <div class="admin-actions">
       <button class="btn primary" id="adminSave">✅ 确认并保存换座</button>
     </div>
@@ -202,9 +202,9 @@ function setOrigin(g, r, seat, id) {
 function initAdminGridEmpty() {
   adminGrid = {};
   adminGridOrigin = {};
-  for (let g = 1; g <= 5; g++) {
+  for (let g = 1; g <= NUM_GROUPS; g++) {
     adminGrid[g] = {};
-    for (let r = 1; r <= 5; r++) {
+    for (let r = 1; r <= NUM_ROWS; r++) {
       adminGrid[g][r] = { left: '', right: '' };
       setOrigin(g, r, 'left', null);
       setOrigin(g, r, 'right', null);
@@ -215,10 +215,14 @@ function initAdminGridEmpty() {
 function renderAdminGrid() {
   const el = document.getElementById('adminGrid');
   let html = '<div class="admin-corner"></div>';
-  for (let g = 5; g >= 1; g--) html += `<div class="admin-col-label">第${g}组</div>`;
-  for (let r = 1; r <= 5; r++) {
+  for (let g = NUM_GROUPS; g >= 1; g--) html += `<div class="admin-col-label">第${g}组</div>`;
+  for (let r = 1; r <= NUM_ROWS; r++) {
     html += `<div class="admin-row-label">第${r}排</div>`;
-    for (let g = 5; g >= 1; g--) {
+    for (let g = NUM_GROUPS; g >= 1; g--) {
+      if (!hasDesk(g, r)) {
+        html += '<div class="admin-desk" style="background:#ececec;opacity:0.6;"></div>';
+        continue;
+      }
       const cell = adminGrid[g][r];
       html += `<div class="admin-desk" data-g="${g}" data-r="${r}">
         <input data-seat="left" value="${esc(cell.left)}" placeholder="左">
@@ -231,8 +235,9 @@ function renderAdminGrid() {
 }
 
 function readAdminGrid() {
-  for (let g = 1; g <= 5; g++) {
-    for (let r = 1; r <= 5; r++) {
+  for (let g = 1; g <= NUM_GROUPS; g++) {
+    for (let r = 1; r <= NUM_ROWS; r++) {
+      if (!hasDesk(g, r)) continue;
       const leftEl = document.querySelector(`.admin-desk[data-g="${g}"][data-r="${r}"] input[data-seat="left"]`);
       const rightEl = document.querySelector(`.admin-desk[data-g="${g}"][data-r="${r}"] input[data-seat="right"]`);
       if (leftEl) adminGrid[g][r].left = leftEl.value.trim();
@@ -245,8 +250,9 @@ function populateAdminGridFromPositions(positions) {
   initAdminGridEmpty();
   const grid = {};
   for (const d of positions) grid[`${d.group},${d.row}`] = d;
-  for (let g = 1; g <= 5; g++) {
-    for (let r = 1; r <= 5; r++) {
+  for (let g = 1; g <= NUM_GROUPS; g++) {
+    for (let r = 1; r <= NUM_ROWS; r++) {
+      if (!hasDesk(g, r)) continue;
       const d = grid[`${g},${r}`];
       if (d) {
         adminGrid[g][r].left = getRawStudentName(d.students[0]);
@@ -267,19 +273,19 @@ function resetAdminToCurrent() {
 
 function flipAdminH() {
   readAdminGrid();
-  for (let r = 1; r <= 5; r++) {
-    const tmp = {};
-    const tmpL = {};
-    const tmpR = {};
-    for (let g = 1; g <= 5; g++) {
-      tmp[g] = { ...adminGrid[g][r] };
-      tmpL[g] = adminGridOrigin[`${g},${r},left`];
-      tmpR[g] = adminGridOrigin[`${g},${r},right`];
-    }
-    for (let g = 1; g <= 5; g++) {
-      adminGrid[6 - g][r] = tmp[g];
-      adminGridOrigin[`${6 - g},${r},left`] = tmpL[g];
-      adminGridOrigin[`${6 - g},${r},right`] = tmpR[g];
+  for (let r = 1; r <= NUM_ROWS; r++) {
+    for (let g = 1; g <= Math.floor(NUM_GROUPS / 2); g++) {
+      const h = NUM_GROUPS + 1 - g;
+      if (!hasDesk(g, r) || !hasDesk(h, r)) continue;
+      const tmp = { ...adminGrid[g][r] };
+      const tmpL = adminGridOrigin[`${g},${r},left`];
+      const tmpR = adminGridOrigin[`${g},${r},right`];
+      adminGrid[g][r] = { ...adminGrid[h][r] };
+      adminGridOrigin[`${g},${r},left`] = adminGridOrigin[`${h},${r},left`];
+      adminGridOrigin[`${g},${r},right`] = adminGridOrigin[`${h},${r},right`];
+      adminGrid[h][r] = tmp;
+      adminGridOrigin[`${h},${r},left`] = tmpL;
+      adminGridOrigin[`${h},${r},right`] = tmpR;
     }
   }
   renderAdminGrid();
@@ -287,19 +293,19 @@ function flipAdminH() {
 
 function flipAdminV() {
   readAdminGrid();
-  for (let g = 1; g <= 5; g++) {
-    const tmp = {};
-    const tmpL = {};
-    const tmpR = {};
-    for (let r = 1; r <= 5; r++) {
-      tmp[r] = { ...adminGrid[g][r] };
-      tmpL[r] = adminGridOrigin[`${g},${r},left`];
-      tmpR[r] = adminGridOrigin[`${g},${r},right`];
-    }
-    for (let r = 1; r <= 5; r++) {
-      adminGrid[g][6 - r] = tmp[r];
-      adminGridOrigin[`${g},${6 - r},left`] = tmpL[r];
-      adminGridOrigin[`${g},${6 - r},right`] = tmpR[r];
+  for (let g = 1; g <= NUM_GROUPS; g++) {
+    for (let r = 1; r <= Math.floor(NUM_ROWS / 2); r++) {
+      const r2 = NUM_ROWS + 1 - r;
+      if (!hasDesk(g, r) || !hasDesk(g, r2)) continue;
+      const tmp = { ...adminGrid[g][r] };
+      const tmpL = adminGridOrigin[`${g},${r},left`];
+      const tmpR = adminGridOrigin[`${g},${r},right`];
+      adminGrid[g][r] = { ...adminGrid[g][r2] };
+      adminGridOrigin[`${g},${r},left`] = adminGridOrigin[`${g},${r2},left`];
+      adminGridOrigin[`${g},${r},right`] = adminGridOrigin[`${g},${r2},right`];
+      adminGrid[g][r2] = tmp;
+      adminGridOrigin[`${g},${r2},left`] = tmpL;
+      adminGridOrigin[`${g},${r2},right`] = tmpR;
     }
   }
   renderAdminGrid();
@@ -398,14 +404,15 @@ function fillAdminGridFromNames2D(grid) {
   const nameToId = buildNameToIdMap();
   const R = grid.length;
   const C = Math.max(...grid.map(r => r.length));
-  for (let r = 1; r <= 5; r++) {
-    for (let g = 1; g <= 5; g++) {
+  for (let r = 1; r <= NUM_ROWS; r++) {
+    for (let g = 1; g <= NUM_GROUPS; g++) {
+      if (!hasDesk(g, r)) continue;
       let left = '', right = '';
-      if (R === 5 && C === 10) {
+      if ((R === 5 || R === 6) && C === 10) {
         const c0 = (g - 1) * 2, c1 = c0 + 1;
         left = (grid[r - 1] && grid[r - 1][c0]) || '';
         right = (grid[r - 1] && grid[r - 1][c1]) || '';
-      } else if (R === 10 && C === 5) {
+      } else if ((R === 10 || R === 12) && C === 5) {
         const rr = (r - 1) * 2;
         left = (grid[rr] && grid[rr][g - 1]) || '';
         right = (grid[rr + 1] && grid[rr + 1][g - 1]) || '';
@@ -461,8 +468,9 @@ function saveAdminArrangement() {
   const newNames = new Set();
 
   // 第一遍:名字在名单里 → 直接用其 ID;不在名单里 → 看该座位原来是谁
-  for (let g = 1; g <= 5; g++) {
-    for (let r = 1; r <= 5; r++) {
+  for (let g = 1; g <= NUM_GROUPS; g++) {
+    for (let r = 1; r <= NUM_ROWS; r++) {
+      if (!hasDesk(g, r)) continue;
       const cell = adminGrid[g][r];
       for (const seat of ['left', 'right']) {
         const name = cell[seat];
@@ -496,19 +504,14 @@ function saveAdminArrangement() {
   // 构建 desks
   const desks = [];
   let id = 0;
-  for (let g = 1; g <= 5; g++) {
-    for (let r = 1; r <= 5; r++) {
+  for (let g = 1; g <= NUM_GROUPS; g++) {
+    for (let r = 1; r <= NUM_ROWS; r++) {
+      if (!hasDesk(g, r)) continue;
       const cell = adminGrid[g][r];
       const leftId = cell.left ? finalIds[cell.left] : null;
       const rightId = cell.right ? finalIds[cell.right] : null;
-      desks.push({ id: id++, students: [leftId, rightId], initGroup: g, initRow: r, isFixed: false, isAlone: false });
+      desks.push({ id: id++, students: [leftId, rightId], initGroup: g, initRow: r, isAlone: (leftId != null && rightId == null) });
     }
-  }
-
-  // 特殊学生:固定生 / 单人座强制保持单人(去掉同桌)
-  for (const d of desks) {
-    if (d.students.indexOf(FIXED_STUDENT) >= 0) { d.isFixed = true; d.students = [FIXED_STUDENT, null]; }
-    if (d.students.indexOf(ALONE_STUDENT) >= 0) { d.isAlone = true; d.students = [ALONE_STUDENT, null]; }
   }
 
   const seen = {};
@@ -528,7 +531,7 @@ function saveAdminArrangement() {
   // 缺失检测(使用完整学生名单,含新建/改名)
   const allIds = Object.keys(loadNames()).map(Number).filter(x => x !== VIRTUAL_STUDENT);
   const placed = new Set(desks.flatMap(d => d.students.filter(s => s !== null && s !== undefined)));
-  const missing = allIds.filter(x => !placed.has(x));
+  const missing = allIds.filter(x => !placed.has(x) && !UNSEATED_STUDENTS.includes(x));
   const usedSeats = desks.reduce((n, d) => n + d.students.filter(s => s !== null).length, 0);
 
   addChange({ startDate, desks, note: '手动换座' });

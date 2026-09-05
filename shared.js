@@ -129,10 +129,26 @@ function naturalPosition(initGroup, initRow, weeks) {
 }
 
 function rotateDesks(desks, weeks) {
-  return desks.map(d => {
+  const positions = desks.map(d => {
     const nat = naturalPosition(d.initGroup, d.initRow, weeks);
     return { ...d, group: nat.group, row: nat.row };
   });
+
+  // 限制:若某组有空桌且不在该组最后一排,把其后的桌依次往前挪一桌,
+  // 把空桌顶到最后一排(学生向前填满,空桌始终留在最后)。
+  for (let g = 1; g <= NUM_GROUPS; g++) {
+    const rows = GROUP_ROWS[g];
+    const lastRow = rows[rows.length - 1];
+    const groupDesks = positions.filter(d => d.group === g);
+    const emptyDesk = groupDesks.find(d => d.students[0] === null && d.students[1] === null);
+    if (!emptyDesk || emptyDesk.row === lastRow) continue;
+    for (const d of groupDesks) {
+      if (d !== emptyDesk && d.row > emptyDesk.row) d.row -= 1;
+    }
+    emptyDesk.row = lastRow;
+  }
+
+  return positions;
 }
 
 // 校验:轮换后每桌都落在有效桌位上(不出界)

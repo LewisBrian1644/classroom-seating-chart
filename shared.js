@@ -95,15 +95,16 @@ function buildInitialDesks() {
 
 // ============================================================================
 //  轮换逻辑:每周 组号+1、排号-1(第1排往前回绕到第6排)。
-//  3 个例外(目标组没位子,跳到第2组的空位):
-//    第4组第2排 → 第2组第4排
-//    第5组第2排 → 第2组第5排
-//    第5组第6排 → 第2组第6排
+//  3 个例外(目标组没位子,跳到第2组的空位)——落点经过排列,让全体串成
+//  一个 26 桌的大环(不出现 3~4 桌的小循环):
+//    第4组第2排 → 第2组第6排
+//    第5组第2排 → 第2组第4排
+//    第5组第6排 → 第2组第5排
 // ============================================================================
 function nextPosition(group, row) {
-  if (group === 4 && row === 2) return { group: 2, row: 4 };
-  if (group === 5 && row === 2) return { group: 2, row: 5 };
-  if (group === 5 && row === 6) return { group: 2, row: 6 };
+  if (group === 4 && row === 2) return { group: 2, row: 6 };
+  if (group === 5 && row === 2) return { group: 2, row: 4 };
+  if (group === 5 && row === 6) return { group: 2, row: 5 };
   return {
     group: (group % NUM_GROUPS) + 1,
     row: row === 1 ? NUM_ROWS : row - 1,

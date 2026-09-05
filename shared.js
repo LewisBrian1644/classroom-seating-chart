@@ -90,6 +90,7 @@ function buildInitialDesks() {
     initGroup: g,
     initRow: r,
     isAlone: seats[0] !== null && seats[1] === null,
+    isFixed: seats[0] === null && seats[1] === null, // 空桌(原鲁唐位)固定不轮换
   }));
 }
 
@@ -122,10 +123,30 @@ function naturalPosition(initGroup, initRow, weeks) {
 }
 
 function rotateDesks(desks, weeks) {
-  return desks.map(d => {
+  const positions = desks.map(d => {
     const nat = naturalPosition(d.initGroup, d.initRow, weeks);
-    return { ...d, group: nat.group, row: nat.row };
+    return {
+      ...d,
+      group: d.isFixed ? d.initGroup : nat.group,
+      row: d.isFixed ? d.initRow : nat.row,
+      naturalGroup: nat.group,
+      naturalRow: nat.row,
+    };
   });
+
+  // 空桌(固定)不轮换;若有其他桌落到空桌位置,改到空桌原本应到的位置
+  const fixed = positions.find(d => d.isFixed);
+  if (fixed) {
+    const collider = positions.find(d =>
+      !d.isFixed && d.group === fixed.initGroup && d.row === fixed.initRow
+    );
+    if (collider) {
+      collider.group = fixed.naturalGroup;
+      collider.row = fixed.naturalRow;
+    }
+  }
+
+  return positions;
 }
 
 // 校验:轮换后每桌都落在有效桌位上(不出界)

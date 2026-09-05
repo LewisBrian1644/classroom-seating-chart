@@ -550,7 +550,6 @@ function render(weekNum) {
 
   // Update header
   document.getElementById('weekDisplay').textContent = `第 ${weekNum} 周`;
-  document.getElementById('datePicker').value = toDateString(weekStart);
 
   // Update info bar
   const infoBar = document.getElementById('infoBar');
@@ -601,14 +600,20 @@ function saveEdit() {
 // ============================================================================
 //  Navigation
 // ============================================================================
+function syncDatePicker(weekNum) {
+  const weekStart = getWeekStartDate(weekNum, currentSemesterStart);
+  document.getElementById('datePicker').value = toDateString(weekStart);
+}
+
 function goToWeek(weekNum) {
   render(weekNum);
+  syncDatePicker(weekNum);
 }
 
 function goToDate(dateStr) {
   const date = new Date(dateStr + 'T00:00:00');
   const weekNum = getWeekNumber(date, currentSemesterStart);
-  goToWeek(weekNum);
+  render(weekNum); // 保留用户选中的日期,不回弹到周一
 }
 
 // ============================================================================
@@ -633,6 +638,7 @@ async function init() {
   }
 
   render(currentWeekNum);
+  syncDatePicker(currentWeekNum);
 
   // Event listeners
   document.getElementById('btnPrevWeek').addEventListener('click', () => {

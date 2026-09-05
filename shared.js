@@ -75,7 +75,7 @@ function buildInitialDesks() {
     [4, 3, [41, 30]],           // 蒋滇粤 / 王传栋
     [4, 4, [6, null]],          // 仝亚盈 — 单人
     [4, 5, [2, null]],          // 王浩宇 — 单人
-    [4, 6, [null, null]],       // 空桌(原鲁唐位)
+    [4, 6, [null, null]],       // 空桌(初始无人坐,作为普通桌一起轮换)
     // 第5组 (2-6排)
     [5, 2, [9, 27]],            // 韩语哲 / 刘耘松
     [5, 3, [16, 14]],           // 李丞阳 / 杨曜铭
@@ -90,7 +90,6 @@ function buildInitialDesks() {
     initGroup: g,
     initRow: r,
     isAlone: seats[0] !== null && seats[1] === null,
-    isFixed: seats[0] === null && seats[1] === null, // 空桌(原鲁唐位)固定不轮换
   }));
 }
 
@@ -101,6 +100,8 @@ function buildInitialDesks() {
 //    第4组第2排 → 第2组第6排
 //    第5组第2排 → 第2组第4排
 //    第5组第6排 → 第2组第5排
+//  空桌(第4组第6排,初始无人坐)作为普通桌一起轮换,所以每周都恰好有
+//  一个空桌,但位置随周变化(不一定在第4组第6排)。
 // ============================================================================
 function nextPosition(group, row) {
   if (group === 4 && row === 2) return { group: 2, row: 6 };
@@ -123,30 +124,10 @@ function naturalPosition(initGroup, initRow, weeks) {
 }
 
 function rotateDesks(desks, weeks) {
-  const positions = desks.map(d => {
+  return desks.map(d => {
     const nat = naturalPosition(d.initGroup, d.initRow, weeks);
-    return {
-      ...d,
-      group: d.isFixed ? d.initGroup : nat.group,
-      row: d.isFixed ? d.initRow : nat.row,
-      naturalGroup: nat.group,
-      naturalRow: nat.row,
-    };
+    return { ...d, group: nat.group, row: nat.row };
   });
-
-  // 空桌(固定)不轮换;若有其他桌落到空桌位置,改到空桌原本应到的位置
-  const fixed = positions.find(d => d.isFixed);
-  if (fixed) {
-    const collider = positions.find(d =>
-      !d.isFixed && d.group === fixed.initGroup && d.row === fixed.initRow
-    );
-    if (collider) {
-      collider.group = fixed.naturalGroup;
-      collider.row = fixed.naturalRow;
-    }
-  }
-
-  return positions;
 }
 
 // 校验:轮换后每桌都落在有效桌位上(不出界)

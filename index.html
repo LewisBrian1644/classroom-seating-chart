@@ -7,7 +7,6 @@
 <script src="shared.js"></script>
 <script src="sync.js"></script>
 <style>
-/* ============ CSS Variables ============ */
 :root {
   --color-bg: #f5f3ef;
   --color-surface: #ffffff;
@@ -17,378 +16,92 @@
   --color-accent: #4a7c96;
   --color-accent-hover: #3a6678;
   --color-blackboard: #2d5a3b;
-  --color-front: #8b7355;
 
-  --group-1: #e8f0f8;
-  --group-1-border: #b0cce5;
-  --group-2: #f0e8f4;
-  --group-2-border: #c9b3d6;
-  --group-3: #e8f4ed;
-  --group-3-border: #a8d4ba;
-  --group-4: #fdf2e0;
-  --group-4-border: #e8c97a;
-  --group-5: #fce8e6;
-  --group-5-border: #f0b4ac;
+  --group-1: #e8f0f8; --group-1-border: #b0cce5;
+  --group-2: #f0e8f4; --group-2-border: #c9b3d6;
+  --group-3: #e8f4ed; --group-3-border: #a8d4ba;
+  --group-4: #fdf2e0; --group-4-border: #e8c97a;
+  --group-5: #fce8e6; --group-5-border: #f0b4ac;
 
   --desk-radius: 10px;
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
   --shadow-md: 0 2px 8px rgba(0,0,0,0.1);
-  --shadow-lg: 0 4px 16px rgba(0,0,0,0.12);
-
   --font-sans: "PingFang SC","Microsoft YaHei","Helvetica Neue",sans-serif;
-  --font-mono: "SF Mono","Fira Code","Consolas",monospace;
 }
-
-/* ============ Base ============ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
 html { font-size: 16px; }
+body { font-family: var(--font-sans); background: var(--color-bg); color: var(--color-text); min-height: 100vh; line-height: 1.5; }
+#app { max-width: 980px; margin: 0 auto; padding: 20px 16px 40px; display: flex; flex-direction: column; gap: 18px; }
 
-body {
-  font-family: var(--font-sans);
-  background: var(--color-bg);
-  color: var(--color-text);
-  min-height: 100vh;
-  line-height: 1.5;
-}
+.header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding: 18px 22px; background: var(--color-surface); border-radius: 14px; box-shadow: var(--shadow-sm); }
+.header-title { font-size: 1.45rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 
-/* ============ App Layout ============ */
-#app {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 20px 24px 40px;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-/* ============ Header ============ */
-.header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 20px 24px;
-  background: var(--color-surface);
-  border-radius: 14px;
-  box-shadow: var(--shadow-sm);
-}
-
-.header-title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--color-text);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.header-title .icon { font-size: 1.6rem; }
-
-/* ============ Controls ============ */
-.controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 8px 16px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: 0.9rem;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-  user-select: none;
-}
-.btn:hover {
-  background: #f8f7f4;
-  border-color: #c5bfb2;
-}
-.btn:active { transform: scale(0.97); }
-.btn.primary {
-  background: var(--color-accent);
-  color: #fff;
-  border-color: var(--color-accent);
-}
+.btn { display: inline-flex; align-items: center; gap: 4px; padding: 8px 15px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); color: var(--color-text); font-size: 0.9rem; font-family: inherit; cursor: pointer; transition: all 0.15s; white-space: nowrap; user-select: none; }
+.btn:hover { background: #f8f7f4; border-color: #c5bfb2; }
+.btn.primary { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
 .btn.primary:hover { background: var(--color-accent-hover); }
+.btn.active { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
 
-.week-display {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  background: #f8f7f4;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 0.95rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.date-input {
-  padding: 8px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-family: inherit;
-  background: var(--color-surface);
-  color: var(--color-text);
-  outline: none;
-  transition: border-color 0.15s;
-}
+.week-display { padding: 8px 14px; background: #f8f7f4; border-radius: 8px; font-weight: 600; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+.date-input { padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 8px; font-size: 0.9rem; font-family: inherit; background: var(--color-surface); color: var(--color-text); outline: none; }
 .date-input:focus { border-color: var(--color-accent); }
 
-/* ============ Info Bar ============ */
-.info-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 12px 20px;
-  background: var(--color-surface);
-  border-radius: 10px;
-  box-shadow: var(--shadow-sm);
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
-  align-items: center;
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
+.info-bar { display: flex; flex-wrap: wrap; gap: 12px; padding: 10px 18px; background: var(--color-surface); border-radius: 10px; box-shadow: var(--shadow-sm); font-size: 0.85rem; color: var(--color-text-secondary); align-items: center; }
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
 .badge.fixed { background: #fde8d0; color: #8b5e2f; }
 .badge.alone { background: #dce8f5; color: #3e6080; }
-.badge.cycle { background: #e0ece4; color: #3d6b4f; }
+.badge.special { background: #fde2e2; color: #a04040; }
 
-/* ============ Classroom Layout ============ */
-.classroom {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  background: var(--color-surface);
-  border-radius: 14px;
-  box-shadow: var(--shadow-md);
-  overflow: hidden;
-}
+.classroom { display: flex; flex-direction: column; background: var(--color-surface); border-radius: 14px; box-shadow: var(--shadow-md); overflow: hidden; }
+.blackboard { display: flex; align-items: center; justify-content: center; padding: 14px; background: var(--color-blackboard); color: #e8e0c8; font-size: 1.1rem; font-weight: 600; letter-spacing: 0.25em; }
 
-/* Blackboard */
-.blackboard {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 14px;
-  background: var(--color-blackboard);
-  color: #e8e0c8;
-  font-size: 1.1rem;
-  font-weight: 600;
-  letter-spacing: 0.2em;
-  text-align: center;
-}
-
-/* Grid wrapper */
-.grid-wrapper {
-  padding: 20px;
-  overflow-x: auto;
-}
-
-.seat-grid {
-  display: grid;
-  grid-template-columns: auto repeat(5, 1fr);
-  grid-template-rows: auto repeat(6, 1fr);
-  gap: 8px;
-  min-width: 540px;
-}
-
-/* Row labels */
-.row-label {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  padding: 0 6px;
-  grid-column: 1;
-}
-
-/* Column labels */
-.col-label {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  padding: 4px 0;
-  grid-row: 1;
-}
-
+.room-body { display: flex; }
+.side-label { width: 30px; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 600; color: var(--color-text-secondary); writing-mode: vertical-rl; letter-spacing: 0.2em; background: #faf9f6; }
+.grid-wrapper { flex: 1; padding: 16px; overflow-x: auto; }
+.seat-grid { display: grid; grid-template-columns: auto repeat(5, 1fr); grid-template-rows: auto repeat(6, 1fr); gap: 8px; min-width: 520px; }
+.row-label { display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600; color: var(--color-text-secondary); padding: 0 6px; grid-column: 1; }
+.col-label { display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 600; color: var(--color-text-secondary); padding: 4px 0; grid-row: 1; }
 .corner { grid-column: 1; grid-row: 1; }
 
-/* ============ Desk Cards ============ */
-.desk {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 8px 6px;
-  border-radius: var(--desk-radius);
-  border: 2px solid transparent;
-  min-height: 64px;
-  transition: transform 0.2s, box-shadow 0.2s;
-  position: relative;
-}
-.desk:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-  z-index: 2;
-}
-
+.desk { display: flex; align-items: center; justify-content: center; gap: 2px; padding: 8px 6px; border-radius: var(--desk-radius); border: 2px solid transparent; min-height: 62px; position: relative; }
 .desk[data-group="1"] { background: var(--group-1); border-color: var(--group-1-border); }
 .desk[data-group="2"] { background: var(--group-2); border-color: var(--group-2-border); }
 .desk[data-group="3"] { background: var(--group-3); border-color: var(--group-3-border); }
 .desk[data-group="4"] { background: var(--group-4); border-color: var(--group-4-border); }
 .desk[data-group="5"] { background: var(--group-5); border-color: var(--group-5-border); }
+.desk.empty-desk { background: #f0f0f0; border-style: dashed; border-color: #d0d0d0; }
+.desk.no-desk { background: transparent; border: none; }
 
-/* Student tag */
-.student {
-  flex: 1;
-  text-align: center;
-  padding: 4px 6px;
-  border-radius: 6px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  background: rgba(255,255,255,0.55);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: default;
-  transition: background 0.15s;
-}
-.student:hover { background: rgba(255,255,255,0.85); }
-.student.empty {
-  background: transparent;
-  color: #bbb;
-  font-weight: 400;
-  font-style: italic;
-  font-size: 0.7rem;
-}
-.student.special {
-  background: rgba(180,130,40,0.18);
-  color: #8b5e2f;
-}
-.student.alone {
-  background: rgba(60,100,140,0.15);
-  color: #3e6080;
-}
+.student { flex: 1; text-align: center; padding: 4px 6px; border-radius: 6px; font-size: 0.82rem; font-weight: 600; background: rgba(255,255,255,0.55); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.student.empty { background: transparent; color: #bbb; font-weight: 400; font-style: italic; font-size: 0.7rem; }
+.student.special { background: rgba(190,70,70,0.16); color: #a04040; }
+.student.alone { background: rgba(60,100,140,0.15); color: #3e6080; }
 
-/* ============ Legend ============ */
-.legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  padding: 12px 20px;
-  font-size: 0.8rem;
-  color: var(--color-text-secondary);
-}
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.legend-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  border: 1px solid rgba(0,0,0,0.12);
-}
+.legend { display: flex; flex-wrap: wrap; gap: 14px; padding: 12px 18px; font-size: 0.8rem; color: var(--color-text-secondary); }
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-dot { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.12); }
 
-/* ============ Settings Panel ============ */
-.settings-toggle {
-  font-size: 0.85rem;
-  color: var(--color-accent);
-  cursor: pointer;
-  user-select: none;
-  padding: 6px 0;
-}
-.settings-toggle:hover { text-decoration: underline; }
+.footer { text-align: center; font-size: 0.75rem; color: #bbb; padding-top: 6px; }
+.footer a { color: #999; }
 
-.settings-panel {
-  display: none;
-  padding: 16px 20px;
-  background: var(--color-surface);
-  border-radius: 10px;
-  box-shadow: var(--shadow-sm);
-  flex-direction: column;
-  gap: 12px;
-}
-.settings-panel.open { display: flex; }
-
-.settings-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-.settings-row label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  min-width: 100px;
-}
-.settings-row input {
-  padding: 6px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  font-size: 0.85rem;
-  font-family: inherit;
-}
-
-/* ============ Footer ============ */
-.footer {
-  text-align: center;
-  font-size: 0.75rem;
-  color: #bbb;
-  padding-top: 8px;
-}
-
-/* ============ Responsive ============ */
 @media (max-width: 700px) {
-  #app { padding: 10px 8px 24px; gap: 14px; }
+  #app { padding: 10px 8px 24px; gap: 12px; }
   .header { padding: 14px 16px; flex-direction: column; align-items: stretch; }
   .header-title { font-size: 1.2rem; justify-content: center; }
   .controls { justify-content: center; }
   .seat-grid { gap: 4px; min-width: auto; }
   .desk { padding: 4px 3px; min-height: 50px; border-radius: 6px; }
   .student { font-size: 0.7rem; padding: 3px 4px; }
-  .grid-wrapper { padding: 10px; }
-  .col-label, .row-label { font-size: 0.7rem; }
+  .side-label { width: 22px; }
 }
 </style>
 </head>
 <body>
 
 <div id="app">
-  <!-- Header -->
   <div class="header">
-    <div class="header-title">
-      <span class="icon">🏫</span> 班级座位表
-    </div>
+    <div class="header-title"><span>🏫</span> 班级座位表</div>
     <div class="controls">
       <button class="btn" id="btnPrevWeek" title="上一周">◀ 上周</button>
       <div class="week-display" id="weekDisplay">第 0 周</div>
@@ -398,291 +111,107 @@ body {
     </div>
   </div>
 
-  <!-- Info Bar -->
-  <div class="info-bar" id="infoBar">
-    <!-- filled by JS -->
-  </div>
+  <div class="info-bar" id="infoBar"></div>
 
-  <!-- Classroom -->
   <div class="classroom">
-    <div class="blackboard">讲 台 / 黑 板</div>
-    <div class="grid-wrapper">
-      <div class="seat-grid" id="seatGrid">
-        <!-- filled by JS -->
-      </div>
+    <div class="blackboard">讲 台</div>
+    <div class="room-body">
+      <div class="side-label">窗</div>
+      <div class="grid-wrapper"><div class="seat-grid" id="seatGrid"></div></div>
+      <div class="side-label">门</div>
     </div>
-    <div class="legend">
-      <div class="legend-item"><div class="legend-dot" style="background:var(--group-5);border-color:var(--group-5-border)"></div> 第5组</div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--group-4);border-color:var(--group-4-border)"></div> 第4组</div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--group-3);border-color:var(--group-3-border)"></div> 第3组</div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--group-2);border-color:var(--group-2-border)"></div> 第2组</div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--group-1);border-color:var(--group-1-border)"></div> 第1组</div>
-      <div class="legend-item" style="margin-left:8px;">◎ 单人单座</div>
-    </div>
-  </div>
-
-  <!-- Settings -->
-  <div class="settings-toggle" id="settingsToggle">⚙ 设置（学期开始日期 / 学生姓名）</div>
-  <div class="settings-panel" id="settingsPanel">
-    <div class="settings-row">
-      <label for="semesterStart">学期开始日期</label>
-      <input type="date" class="date-input" id="semesterStartInput">
-    </div>
-    <div style="font-size:0.85rem;color:var(--color-text-secondary);">
-      点击座位上的学生姓名可编辑。修改自动保存到浏览器。
-    </div>
+    <div class="legend" id="legend"></div>
   </div>
 
   <div class="footer">
-    换座规则：每周组号+1、排号-1（第1排回绕到第6排；第1/5组第2排视同第1排）· 坐不下临时借坐 · 空桌自动留在最后一排
-    <div style="margin-top:6px;"><a href="admin.html" style="color:#bbb;">🔧 管理员入口</a></div>
-  </div>
-</div>
-
-<!-- Edit modal -->
-<div id="editModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:100;align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:14px;padding:24px;min-width:280px;max-width:360px;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;gap:14px;">
-    <div style="font-weight:700;font-size:1rem;">编辑学生姓名</div>
-    <div style="font-size:0.85rem;color:var(--color-text-secondary);" id="editModalStudentId"></div>
-    <input type="text" id="editModalInput" style="padding:10px 12px;border:1px solid var(--color-border);border-radius:8px;font-size:1rem;font-family:inherit;outline:none;" maxlength="20" placeholder="输入姓名">
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button class="btn" id="editModalCancel">取消</button>
-      <button class="btn primary" id="editModalSave">保存</button>
-    </div>
+    换座规则：每周组号+1、排号+1 · 特殊桌不坐第5组 · <a href="admin.html">🔧 管理员入口</a>
   </div>
 </div>
 
 <script>
-// 核心逻辑(名单 / 轮换 / 换座记录 / 日期工具)已抽到 shared.js
-
-// ============================================================================
-//  Render
-// ============================================================================
 let currentWeekNum = 0;
-let currentSemesterStart = getSemesterStart();
 
 function render(weekNum) {
   currentWeekNum = weekNum;
-  const weekStart = getWeekStartDate(weekNum, currentSemesterStart);
-  const dateStr = formatDate(weekStart);
-  const positions = getDeskPositionsForDate(dateStr);
-  const arrangement = getArrangementForDate(dateStr);
+  const version = getActiveVersion();
+  const date = weekStartDate(weekNum);
+  const dateStr = formatDate(date);
+  const seating = getSeatingForDate(version, dateStr);
 
-  // Build grid lookup: group x row → desk
-  const grid = {};
-  for (const d of positions) {
-    const key = `${d.group},${d.row}`;
-    grid[key] = d;
-  }
-
-  // Render grid
+  // 渲染网格(列:第5组 → 第1组,左到右;行:第1排在前,第6排在后)
   const seatGrid = document.getElementById('seatGrid');
-  let html = '';
+  let html = '<div class="corner"></div>';
+  for (let g = NUM_GROUPS; g >= 1; g--) html += `<div class="col-label">第${g}组</div>`;
 
-  // Corner + column labels (groups 5→1 left to right, so group 1 is rightmost)
-  html += '<div class="corner"></div>';
-  for (let g = NUM_GROUPS; g >= 1; g--) {
-    html += `<div class="col-label">第${g}组</div>`;
-  }
-
-  // Rows (front row = row 1 = top)
   for (let r = 1; r <= NUM_ROWS; r++) {
     html += `<div class="row-label">第${r}排</div>`;
     for (let g = NUM_GROUPS; g >= 1; g--) {
-      const key = `${g},${r}`;
-      const desk = grid[key];
-
-      if (!desk) {
-        html += '<div class="desk" style="background:#f0f0f0;border-style:dashed;"><div class="student empty">空</div></div>';
-        continue;
-      }
-
-      // Render two seats
-      const leftStudent = desk.students[0];
-      const rightStudent = desk.students[1];
-
-      const leftName = getStudentName(leftStudent);
-      const rightName = getStudentName(rightStudent);
-
-      // Determine special classes
-      const leftClass = desk.isAlone && leftStudent !== null ? ' alone'
-        : leftStudent === null ? ' empty' : '';
-      const rightClass = rightStudent === null ? ' empty' : '';
-
-      const leftClick = (leftStudent && leftStudent !== VIRTUAL_STUDENT)
-        ? `onclick="editStudent(${leftStudent})"` : '';
-      const rightClick = (rightStudent && rightStudent !== VIRTUAL_STUDENT)
-        ? `onclick="editStudent(${rightStudent})"` : '';
-
-      const leftDisplay = leftStudent === null ? '(空)' : leftName;
-      const rightDisplay = rightStudent === VIRTUAL_STUDENT ? '(空)'
-        : rightStudent === null ? '(空)' : rightName;
-
-      html += `
-        <div class="desk" data-group="${g}">
-          <div class="student${leftClass}" ${leftClick} title="${leftStudent ? '点击编辑 ' + leftName : ''}">${leftDisplay}</div>
-          <div class="student${rightClass}" ${rightClick} title="${(rightStudent && rightStudent !== VIRTUAL_STUDENT) ? '点击编辑 ' + rightName : ''}">${rightDisplay}</div>
-        </div>`;
+      const valid = (ACTUAL_ROWS[g] || []).includes(r);
+      if (!valid) { html += '<div class="desk no-desk"></div>'; continue; }
+      const desk = seating.get(`${g},${r}`);
+      if (!desk) { html += '<div class="desk empty-desk"><div class="student empty">空</div></div>'; continue; }
+      const [left, right] = desk.students;
+      const leftName = left || '(空)';
+      const rightName = right || '(空)';
+      const leftCls = desk.special ? ' special' : (right === null ? ' alone' : '');
+      const rightCls = (right === null ? ' empty' : '');
+      html += `<div class="desk" data-group="${g}">`
+        + `<div class="student${leftCls}">${leftName}</div>`
+        + `<div class="student${rightCls}">${rightName}</div>`
+        + `</div>`;
     }
   }
-
   seatGrid.innerHTML = html;
 
-  // Update header
-  document.getElementById('weekDisplay').textContent = `第 ${weekNum} 周`;
+  // 头部信息
+  document.getElementById('weekDisplay').textContent = `第 ${weekNum + 1} 周`;
+  document.getElementById('datePicker').value = dateStr;
 
-  // Update info bar
-  const infoBar = document.getElementById('infoBar');
-  const singleNames = buildInitialDesks()
-    .filter(d => d.isAlone)
-    .map(d => getStudentName(d.students[0]))
-    .join('、');
-  const overrideBadge = arrangement.isOverride
-    ? `<span class="badge cycle">🔧 手动换座：自 ${arrangement.baselineStart} 起</span>` : '';
-  infoBar.innerHTML = `
-    <span>📅 学期开始：${formatDate(currentSemesterStart)}</span>
-    <span>📐 本周起始：${formatDate(weekStart)}</span>
-    <span class="badge alone">◎ 单人座：${singleNames}</span>
-    ${overrideBadge}
+  // 信息栏
+  let people = 0, singles = [];
+  for (const [, d] of seating) {
+    people += d.students.filter(Boolean).length;
+    if (d.students[1] === null && d.students[0]) singles.push(d.students[0]);
+  }
+  const lu = (hasLu(version) && seating.has('4,1')) ? '<span class="badge fixed">📌 鲁唐扬真 固定第4组第1排</span>' : '';
+  const verBadge = version === 1 ? '<span class="badge special">V1（含鲁唐扬真）</span>' : '<span class="badge special">V2（不含鲁唐扬真）</span>';
+  document.getElementById('infoBar').innerHTML = `
+    <span>📅 学期开始：${formatDate(getSemesterStart())}</span>
+    <span>📐 本周起始：${dateStr}</span>
+    ${verBadge}
+    ${lu}
+    <span class="badge alone">👥 ${people} 人</span>
+    <span class="badge alone">◎ 单人座：${singles.join('、') || '无'}</span>
   `;
 }
 
-// ============================================================================
-//  Edit modal
-// ============================================================================
-let editingStudentId = null;
+function goToWeek(n) { render(n); }
 
-function editStudent(id) {
-  editingStudentId = id;
-  document.getElementById('editModalStudentId').textContent = `学生 ID: ${id}`;
-  document.getElementById('editModalInput').value = getStudentName(id);
-  document.getElementById('editModal').style.display = 'flex';
-  document.getElementById('editModalInput').focus();
-  document.getElementById('editModalInput').select();
-}
-
-function closeEditModal() {
-  document.getElementById('editModal').style.display = 'none';
-  editingStudentId = null;
-}
-
-function saveEdit() {
-  if (editingStudentId === null) return;
-  const newName = document.getElementById('editModalInput').value.trim();
-  if (newName) {
-    saveName(editingStudentId, newName);
-    render(currentWeekNum);
-    syncPush();
-  }
-  closeEditModal();
-}
-
-// ============================================================================
-//  Navigation
-// ============================================================================
-function syncDatePicker(weekNum) {
-  const weekStart = getWeekStartDate(weekNum, currentSemesterStart);
-  document.getElementById('datePicker').value = toDateString(weekStart);
-}
-
-function goToWeek(weekNum) {
-  render(weekNum);
-  syncDatePicker(weekNum);
-}
-
-function goToDate(dateStr) {
-  const date = new Date(dateStr + 'T00:00:00');
-  const weekNum = getWeekNumber(date, currentSemesterStart);
-  render(weekNum); // 保留用户选中的日期,不回弹到周一
-}
-
-// ============================================================================
-//  Init
-// ============================================================================
 async function init() {
-  // 从后端拉取最新数据(未配置后端则静默回退本地)
   try { await syncLoad(); } catch (e) {}
-
-  // Semester start
-  currentSemesterStart = getSemesterStart();
-  document.getElementById('semesterStartInput').value = toDateString(currentSemesterStart);
-
-  // Determine current week
   const today = new Date();
-  currentWeekNum = getWeekNumber(today, currentSemesterStart);
+  let wn = weeksSinceStart(today);
+  if (wn < -20 || wn > 40) wn = 0;
+  render(Math.max(0, wn));
 
-  // Force a sensible default if today is far from semester
-  // (e.g. before semester starts or long after)
-  if (currentWeekNum < -20 || currentWeekNum > 30) {
-    currentWeekNum = 0;
-  }
-
-  render(currentWeekNum);
-  syncDatePicker(currentWeekNum);
-
-  // Event listeners
-  document.getElementById('btnPrevWeek').addEventListener('click', () => {
-    goToWeek(currentWeekNum - 1);
-  });
-  document.getElementById('btnNextWeek').addEventListener('click', () => {
-    goToWeek(currentWeekNum + 1);
-  });
-  document.getElementById('btnToday').addEventListener('click', () => {
-    const today = new Date();
-    const wn = getWeekNumber(today, currentSemesterStart);
-    goToWeek(wn);
-  });
+  document.getElementById('btnPrevWeek').addEventListener('click', () => goToWeek(currentWeekNum - 1));
+  document.getElementById('btnNextWeek').addEventListener('click', () => goToWeek(currentWeekNum + 1));
+  document.getElementById('btnToday').addEventListener('click', () => goToWeek(Math.max(0, weeksSinceStart(new Date()))));
   document.getElementById('datePicker').addEventListener('change', (e) => {
-    goToDate(e.target.value);
+    const d = new Date(e.target.value + 'T00:00:00');
+    goToWeek(Math.max(0, weeksSinceStart(d)));
   });
 
-  // Settings
-  document.getElementById('settingsToggle').addEventListener('click', () => {
-    document.getElementById('settingsPanel').classList.toggle('open');
-  });
-  document.getElementById('semesterStartInput').addEventListener('change', (e) => {
-    const newStart = new Date(e.target.value + 'T00:00:00');
-    setSemesterStart(newStart);
-    syncPush();
-    currentSemesterStart = newStart;
-    const today = new Date();
-    const wn = getWeekNumber(today, currentSemesterStart);
-    goToWeek(wn >= 0 ? wn : 0);
-  });
-
-  // Edit modal
-  document.getElementById('editModalCancel').addEventListener('click', closeEditModal);
-  document.getElementById('editModalSave').addEventListener('click', saveEdit);
-  document.getElementById('editModalInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') saveEdit();
-    if (e.key === 'Escape') closeEditModal();
-  });
-  document.getElementById('editModal').addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) closeEditModal();
-  });
-
-  // Keyboard shortcuts
+  // 键盘
   document.addEventListener('keydown', (e) => {
-    if (e.target.tagName === 'INPUT') return; // Don't intercept input
+    if (e.target.tagName === 'INPUT') return;
     if (e.key === 'ArrowLeft') goToWeek(currentWeekNum - 1);
     if (e.key === 'ArrowRight') goToWeek(currentWeekNum + 1);
-    if (e.key === 't' || e.key === 'T') {
-      const today = new Date();
-      goToWeek(getWeekNumber(today, currentSemesterStart));
-    }
+    if (e.key === 't' || e.key === 'T') goToWeek(Math.max(0, weeksSinceStart(new Date())));
   });
-
-  // Verify rotation stays within valid desks
-  const verify = verifyRotation(100);
-  if (verify.ok) {
-    console.log('✅ 轮换校验通过：100 周内每桌都落在有效桌位内。');
-  } else {
-    console.warn(`⚠ 轮换出界：桌(${verify.desk.initGroup},${verify.desk.initRow}) 第${verify.week}周 -> (${verify.pos.group},${verify.pos.row})`);
-  }
 }
 
 document.addEventListener('DOMContentLoaded', init);
 </script>
-
 </body>
 </html>

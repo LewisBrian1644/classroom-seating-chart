@@ -1,286 +1,344 @@
 // ============================================================================
-//  CLASSROOM SEATING CHART — 共享核心逻辑
-//  被 index.html(学生视图) 与 admin.html(管理员换座) 共同加载。
-//  只包含纯逻辑与 localStorage 读写,不依赖 DOM。
+//  班级座位表 v2.0.0 — 共享核心逻辑
+//  被 index.html(学生视图) 与 admin.html(管理员) 共同加载。
+//  纯逻辑 + localStorage 读写,不依赖 DOM。
+//
+//  模型(与旧版 v1 的区别):
+//   * 存在两套坐标 ——「标准座位表」与「实际座位表」。
+//   * 标准座位表:所有组顶部对齐(第 1 组 1-4 排、第 2 组 1-5 排、第 3 组 1-6 排、
+//     第 4 组 1-5 排、第 5 组 1-5 排),轮换直接作用在标准坐标上。
+//   * 实际座位表:教室真实形状(第 1 组 2-4 排、第 2/3/4 组 1-6 排、第 5 组 2-6 排),
+//     是最终展示的座位表。第 1、5 组(以及 V1 中因鲁唐扬真固定而让位的第 4 组)
+//     在标准基础上整体下移一排。
+//   * 轮换规则:每周 组号 +1、排号 +1;排号按「小组」(同桌初始所在组)的回绕上限取模。
+//   * 标准→实际:能直接落进实际形状的桌直接放;落不进的「溢出桌」按
+//     「组号差绝对值 + 排号差绝对值」的距离,以总距离最小(即平均值最小)填入空桌。
+//   * 特殊规则:熊晨伊/刘一诺、仝亚盈、杜卓航/樊霖洁、周加灵/隆竞瑶 四桌
+//     若落到第 5 组,则与第 4 组同排交换。
 // ============================================================================
 
 const NUM_GROUPS = 5;
 const NUM_ROWS = 6;
-const VIRTUAL_STUDENT = 49;
-const CHANGES_KEY = 'seat-arrangement-changes';
-const UNSEATED_STUDENTS = [1]; // 鲁唐扬真 — 本学期不排座(表外)
 
-// 每组可用的排号(第1排=前排,靠后=第6排)
-// 第1组 2-4排 · 第2/3/4组 1-6排 · 第5组 2-6排(共26桌)
-const GROUP_ROWS = {
-  1: [2, 3, 4],
-  2: [1, 2, 3, 4, 5, 6],
+// localStorage / KV 键
+const KEY_START      = 'seat-semester-start';
+const KEY_NAMES      = 'seat-student-names';
+const KEY_INITIAL_V1 = 'seat-initial-v1';
+const KEY_INITIAL_V2 = 'seat-initial-v2';
+
+// ============================================================================
+//  实际教室形状:每个组有哪些「实际排」(真实存在的桌子)
+// ============================================================================
+const ACTUAL_ROWS = {
+  1: [2, 3, 4],           // 第 1 组 2-4 排
+  2: [1, 2, 3, 4, 5, 6],  // 第 2 组 1-6 排
   3: [1, 2, 3, 4, 5, 6],
   4: [1, 2, 3, 4, 5, 6],
-  5: [2, 3, 4, 5, 6],
-};
-
-function hasDesk(group, row) {
-  return (GROUP_ROWS[group] || []).includes(row);
-}
-
-// Student ID → name mapping for initial arrangement
-// 1=鲁唐扬真(本学期暂不排座,放表外)
-const STUDENT_NAMES = {
-  1:'鲁唐扬真', 2:'王浩宇',
-  3:'单俊杰', 4:'唐梓耀', 5:'周加灵', 6:'仝亚盈',
-  7:'宋欣哲', 8:'邵振琦', 9:'韩语哲', 10:'熊晨伊',
-  11:'黄启宸', 12:'马亚勋',
-  13:'李彦节', 14:'杨曜铭', 15:'车俊贤', 16:'李丞阳',
-  17:'余芃澄', 18:'何炫毅', 19:'李庭葳', 20:'桂钰欢',
-  21:'蔡磊', 22:'王奕霖',
-  23:'郑光朔', 24:'吴子墨', 25:'贺奥凯', 26:'于昕呈',
-  27:'刘耘松', 28:'鲍奕丞', 29:'代一尘', 30:'王传栋',
-  31:'李博文', 32:'杨李吉',
-  33:'于阅', 34:'高若元', 35:'杜卓航', 36:'刘一诺',
-  37:'郭振宇', 38:'周至柔', 39:'陈柯璟', 40:'邓轶辰',
-  41:'蒋滇粤', 42:'李梓维', 43:'刘涛', 44:'代岑',
-  45:'樊霖洁', 46:'隆竞瑶', 47:'叶恒铭', 48:'周钇寰',
+  5: [2, 3, 4, 5, 6],     // 第 5 组 2-6 排
 };
 
 // ============================================================================
-//  初始座位(第 0 周基准)
-//  布局:第1组 2-4排;第2/3/4组 1-6排;第5组 2-6排(共26桌)
-//  鲁唐扬真(1号)本学期不排座;王浩宇/仝亚盈/于阅 为单人座
-//  每桌: { students: [leftId, rightId], initGroup, initRow }
+//  初始座位表(标准坐标)。group = 小组(1-5,固定不变),row = 该小组内的标准排号。
+//  students = [左, 右],单人则右侧为 null。
+//  V1 含鲁唐扬真(固定第 4 组第 1 排,不参与轮换);V2 不含。
 // ============================================================================
-function buildInitialDesks() {
-  const assignments = [
-    // 第1组 (2-4排)
-    [1, 2, [4, 39]],            // 唐梓耀 / 陈柯璟
-    [1, 3, [7, 43]],            // 宋欣哲 / 刘涛
-    [1, 4, [37, 40]],           // 郭振宇 / 邓轶辰
-    // 第2组 (1-6排)
-    [2, 1, [31, 22]],           // 李博文 / 王奕霖
-    [2, 2, [23, 38]],           // 郑光朔 / 周至柔
-    [2, 3, [5, 46]],            // 周加灵 / 隆竞瑶
-    [2, 4, [42, 28]],           // 李梓维 / 鲍奕丞
-    [2, 5, [19, 8]],            // 李庭葳 / 邵振琦
-    [2, 6, [11, 48]],           // 黄启宸 / 周钇寰
-    // 第3组 (1-6排)
-    [3, 1, [15, 24]],           // 车俊贤 / 吴子墨
-    [3, 2, [34, 3]],            // 高若元 / 单俊杰
-    [3, 3, [35, 45]],           // 杜卓航 / 樊霖洁
-    [3, 4, [32, 21]],           // 杨李吉 / 蔡磊
-    [3, 5, [29, 12]],           // 代一尘 / 马亚勋
-    [3, 6, [33, null]],         // 于阅 — 单人
-    // 第4组 (1-6排)
-    [4, 1, [17, 18]],           // 余芃澄 / 何炫毅
-    [4, 2, [26, 13]],           // 于昕呈 / 李彦节
-    [4, 3, [41, 30]],           // 蒋滇粤 / 王传栋
-    [4, 4, [6, null]],          // 仝亚盈 — 单人
-    [4, 5, [2, null]],          // 王浩宇 — 单人
-    [4, 6, [null, null]],       // 空桌(初始无人坐,作为普通桌一起轮换)
-    // 第5组 (2-6排)
-    [5, 2, [9, 27]],            // 韩语哲 / 刘耘松
-    [5, 3, [16, 14]],           // 李丞阳 / 杨曜铭
-    [5, 4, [10, 36]],           // 熊晨伊 / 刘一诺
-    [5, 5, [44, 20]],           // 代岑 / 桂钰欢
-    [5, 6, [47, 25]],           // 叶恒铭 / 贺奥凯
+
+// 鲁唐扬真 —— V1 中固定在第四组第 1 排(标准第 0 排),不轮换,不计入第四小组
+const LU_TANG_YANG_ZHEN = '鲁唐扬真';
+
+function V1_DESKS() {
+  return [
+    // 第一小组(初始第 1 组,4 桌,8 人)—— 实际 2-4 排 + 溢出 1 桌
+    { group: 1, row: 1, students: ['唐梓耀', '周寰'] },
+    { group: 1, row: 2, students: ['黄启宸', '陈柯璟'] },
+    { group: 1, row: 3, students: ['宋欣哲', '刘涛'] },
+    { group: 1, row: 4, students: ['郭振宇', '邓轶辰'] },
+
+    // 第二小组(5 桌,10 人)
+    { group: 2, row: 1, students: ['李博文', '王奕霖'] },
+    { group: 2, row: 2, students: ['郑光朔', '周至柔'] },
+    { group: 2, row: 3, students: ['周加灵', '隆竞瑶'] },
+    { group: 2, row: 4, students: ['李梓维', '鲍奕丞'] },
+    { group: 2, row: 5, students: ['李庭葳', '邵振琦'] },
+
+    // 第三小组(6 桌,11 人)
+    { group: 3, row: 1, students: ['车俊贤', '吴子墨'] },
+    { group: 3, row: 2, students: ['高若元', '单俊杰'] },
+    { group: 3, row: 3, students: ['杜卓航', '樊霖洁'] },
+    { group: 3, row: 4, students: ['杨李吉', '蔡磊'] },
+    { group: 3, row: 5, students: ['代一尘', '马亚勋'] },
+    { group: 3, row: 6, students: ['于阅', null] },
+
+    // 第四小组(5 桌,8 人;鲁唐扬真单独固定)
+    { group: 4, row: 1, students: ['余芃澄', '何炫毅'] },
+    { group: 4, row: 2, students: ['于听呈', '李彦节'] },
+    { group: 4, row: 3, students: ['蒋滇粵', '王传栋'] },
+    { group: 4, row: 4, students: ['仝亚盈', null] },
+    { group: 4, row: 5, students: ['王浩宇', null] },
+
+    // 第五小组(5 桌,10 人)
+    { group: 5, row: 1, students: ['韩语哲', '刘耘松'] },
+    { group: 5, row: 2, students: ['李丞阳', '杨曜铭'] },
+    { group: 5, row: 3, students: ['熊晨伊', '刘一诺'] },
+    { group: 5, row: 4, students: ['代岑', '桂钰欢'] },
+    { group: 5, row: 5, students: ['叶恒铭', '贺奥凯'] },
   ];
+}
 
-  return assignments.map(([g, r, seats], i) => ({
-    id: i,
-    students: seats,
-    initGroup: g,
-    initRow: r,
-    isAlone: seats[0] !== null && seats[1] === null,
-  }));
+function V2_DESKS() {
+  // 与 V1 相同,只是没有鲁唐扬真(第 4 组只有 5 桌,共 25 桌 / 47 人)
+  const desks = V1_DESKS();
+  return desks; // 鲁唐扬真不在此列表(见 buildVersionDesks)
+}
+
+// 是否 V1 含鲁唐扬真
+function hasLu(version) {
+  return version === 1;
+}
+
+// 组装某版本的全部桌(含固定桌)
+function buildVersionDesks(version) {
+  const desks = loadInitialDesks(version);
+  const list = desks.map((d, i) => ({ ...d, id: i, fixed: false }));
+  if (hasLu(version)) {
+    list.push({ id: 'LU', fixed: true, group: 4, row: 0, students: [LU_TANG_YANG_ZHEN, null] });
+  }
+  return list;
 }
 
 // ============================================================================
-//  轮换逻辑:每周 组号+1、排号-1(第1排回绕到第6排)——自然轨迹是 30 大环。
-//  第1组、第5组没有第1排(第2排才和其它组的第1排平齐),所以换座时把它们的
-//  排号整体减 1 再参与「排-1」,这样前排(第2排)回绕才正确。
-//  布局不规则,某桌按「组+1排-1」会落到没有该排的组 =「坐不下」,此时临时
-//  去有空位的组「借坐」;下一周仍按它本来的自然轨迹走(借坐只影响当周,
-//  不改变它下周的自然位置,即「下一周够坐就回到原来的组」)。
-//  空桌透明:空桌的自然位置可被借坐,空桌最后落到剩下的那个空位上。
+//  初始座位表读写(允许管理员覆盖;默认用内置 V1/V2)
 // ============================================================================
-function rowOffset(group) {
-  return (group === 1 || group === 5) ? -1 : 0;
+function defaultInitialDesks(version) {
+  return version === 1 ? V1_DESKS() : V2_DESKS();
 }
 
-function naturalNext(group, row) {
-  const nRow = row + rowOffset(group);                 // 归一化:第1/5组第2排 = 第1排
-  const newGroup = (group % NUM_GROUPS) + 1;
-  const newNRow = nRow === 1 ? NUM_ROWS : nRow - 1;    // 排-1,第1排回绕到第6排
-  return { group: newGroup, row: newNRow - rowOffset(newGroup) };
-}
-
-function naturalPosition(initGroup, initRow, weeks) {
-  let g = initGroup, r = initRow;
-  for (let w = 0; w < weeks; w++) {
-    const n = naturalNext(g, r);
-    g = n.group; r = n.row;
-  }
-  return { group: g, row: r };
-}
-
-function rotateDesks(desks, weeks) {
-  // 1. 每桌按自然轨迹算位置(可能落到无效位置 = 坐不下)
-  const positions = desks.map(d => {
-    const nat = naturalPosition(d.initGroup, d.initRow, weeks);
-    return { ...d, group: nat.group, row: nat.row };
-  });
-
-  // 2. 空桌透明:单独拿出来,其自然位置也算空位
-  const emptyDesk = positions.find(d => d.students[0] === null && d.students[1] === null);
-  const occupied = positions.filter(d => d !== emptyDesk);
-
-  // 3. 自然位置有效的桌占住位置;无效的桌需要「借坐」
-  const taken = new Set();
-  const borrowers = [];
-  for (const d of occupied) {
-    if (hasDesk(d.group, d.row)) taken.add(d.group + ',' + d.row);
-    else borrowers.push(d);
-  }
-
-  // 4. 空位 = 所有有效位置中没被占住的(含空桌自然位置)
-  const free = [];
-  for (let g = 1; g <= NUM_GROUPS; g++) {
-    for (const r of GROUP_ROWS[g]) {
-      if (!taken.has(g + ',' + r)) free.push({ group: g, row: r });
-    }
-  }
-
-  // 5. 借坐分配:优先本组空位,否则第2组;借坐桌按归一化排号从小到大排序,
-  //    让前排的桌借前排空位、后排的桌借后排空位,保持前后相对顺序
-  borrowers.sort((a, b) => ((a.row + rowOffset(a.group)) - (b.row + rowOffset(b.group))) || (a.group - b.group));
-  const remaining = free.slice();
-  for (const b of borrowers) {
-    const targetGroup = b.group; // 自然轨迹里它本应去的组
-    let slot = remaining.find(f => f.group === targetGroup);
-    if (!slot) slot = remaining.find(f => f.group === 2);
-    if (!slot) slot = remaining[0];
-    if (slot) {
-      b.group = slot.group; b.row = slot.row;
-      remaining.splice(remaining.indexOf(slot), 1);
-    }
-  }
-
-  // 6. 空桌落到剩下的空位
-  if (emptyDesk && remaining.length) {
-    emptyDesk.group = remaining[0].group;
-    emptyDesk.row = remaining[0].row;
-  }
-
-  // 7. 填满规则:空桌不在最后一排,就把其后桌往前移,把空桌顶到最后一排
-  for (let g = 1; g <= NUM_GROUPS; g++) {
-    const rows = GROUP_ROWS[g];
-    const lastRow = rows[rows.length - 1];
-    const groupDesks = positions.filter(d => d.group === g);
-    const e = groupDesks.find(d => d.students[0] === null && d.students[1] === null);
-    if (!e || e.row === lastRow) continue;
-    for (const d of groupDesks) {
-      if (d !== e && d.row > e.row) d.row -= 1;
-    }
-    e.row = lastRow;
-  }
-
-  return positions;
-}
-
-// 校验:轮换后每桌都落在有效桌位上且不重叠
-function verifyRotation(maxWeeks) {
-  const desks = buildInitialDesks();
-  for (let w = 0; w <= maxWeeks; w++) {
-    const pos = rotateDesks(desks, w);
-    const seen = new Set();
-    for (const d of pos) {
-      if (!hasDesk(d.group, d.row)) {
-        return { ok: false, desk: d, week: w, pos: { group: d.group, row: d.row } };
-      }
-      const k = d.group + ',' + d.row;
-      if (seen.has(k)) {
-        return { ok: false, desk: d, week: w, pos: { group: d.group, row: d.row } };
-      }
-      seen.add(k);
-    }
-  }
-  return { ok: true };
-}
-
-// ============================================================================
-//  换座记录: [{ startDate: 'YYYY-MM-DD', desks: [...], note }]
-//  自 startDate 起,座位使用该基准并继续每周轮换
-// ============================================================================
-function getChanges() {
+function loadInitialDesks(version) {
+  const key = version === 1 ? KEY_INITIAL_V1 : KEY_INITIAL_V2;
   try {
-    const raw = localStorage.getItem(CHANGES_KEY);
+    const raw = localStorage.getItem(key);
     if (raw) return JSON.parse(raw);
   } catch (e) { /* ignore */ }
-  return [];
+  return defaultInitialDesks(version);
 }
 
-function setChanges(changes) {
-  localStorage.setItem(CHANGES_KEY, JSON.stringify(changes));
+function saveInitialDesks(version, desks) {
+  const key = version === 1 ? KEY_INITIAL_V1 : KEY_INITIAL_V2;
+  localStorage.setItem(key, JSON.stringify(desks));
 }
 
-function addChange(change) {
-  const changes = getChanges();
-  changes.push(change);
-  setChanges(changes);
-}
-
-function removeChange(index) {
-  const changes = getChanges();
-  changes.splice(index, 1);
-  setChanges(changes);
-}
-
-function getArrangementForDate(dateStr) {
-  const changes = getChanges()
-    .filter(c => c.startDate && c.startDate <= dateStr)
-    .sort((a, b) => a.startDate.localeCompare(b.startDate));
-  if (changes.length) {
-    const latest = changes[changes.length - 1];
-    return { desks: latest.desks, baselineStart: latest.startDate, isOverride: true };
+// ============================================================================
+//  小组回绕上限 = 该小组(同桌初始所在组)的标准最大排号
+//  由初始桌数据推导(管理员改表后自动更新)
+// ============================================================================
+function groupMaxRow(desks) {
+  const max = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  for (const d of desks) {
+    if (d.fixed) continue;
+    if (d.row > max[d.group]) max[d.group] = d.row;
   }
-  return {
-    desks: buildInitialDesks(),
-    baselineStart: formatDate(getSemesterStart()),
-    isOverride: false,
-  };
+  return max;
 }
 
-function weeksBetween(startDateStr, endDateStr) {
-  const start = new Date(startDateStr + 'T00:00:00');
-  const end = new Date(endDateStr + 'T00:00:00');
-  return Math.floor((end - start) / (7 * 24 * 60 * 60 * 1000));
+// ============================================================================
+//  轮换:组 +1、排 +1(排按小组回绕上限取模)
+//  返回每桌在「标准坐标」下的位置 { group, row }
+// ============================================================================
+function standardPositions(version, weeks) {
+  const desks = buildVersionDesks(version);
+  const maxRow = groupMaxRow(desks);
+  return desks.map((d) => {
+    if (d.fixed) {
+      // 鲁唐扬真固定:第 4 组,标准第 0 排(实际第 1 排)
+      return { ...d, group: 4, stdRow: 0 };
+    }
+    const g = ((d.group - 1 + weeks) % NUM_GROUPS) + 1;
+    const m = maxRow[d.group] || 1;
+    const r = ((d.row - 1 + weeks) % m) + 1;
+    return { ...d, group: g, stdRow: r };
+  });
 }
 
-function getDeskPositionsForDate(dateStr) {
-  const { desks, baselineStart } = getArrangementForDate(dateStr);
-  const weeks = weeksBetween(baselineStart, dateStr);
-  return rotateDesks(desks, Math.max(0, weeks));
+// 标准排 → 实际排(第 1、5 组下移一排;V1 第 4 组因鲁唐扬真让位也下移一排)
+function stdToActualRow(group, stdRow, version) {
+  if (group === 1 || group === 5) return stdRow + 1;
+  if (group === 4 && hasLu(version)) return stdRow + 1;
+  return stdRow;
+}
+
+// ============================================================================
+//  距离:两桌之间 = |组号差| + |排号差|
+// ============================================================================
+function distance(g1, r1, g2, r2) {
+  return Math.abs(g1 - g2) + Math.abs(r1 - r2);
+}
+
+// 最小总距离(即平均值最小)的最优指派:溢出桌 -> 空桌
+// costs[i][j] = 溢出桌 i 与空桌 j 的距离;用位掩码 DP 求最优(规模极小)
+function assignMinCost(costs) {
+  const n = costs.length;          // 溢出桌数量
+  const m = n ? costs[0].length : 0; // 空桌数量(可能 > n)
+  if (n === 0) return [];
+  const size = 1 << m;
+  const dp = new Array(size).fill(Infinity);
+  const prev = new Array(size).fill(-1);
+  dp[0] = 0;
+  const popcount = (x) => { let c = 0; while (x) { c += x & 1; x >>= 1; } return c; };
+  for (let mask = 0; mask < size; mask++) {
+    const i = popcount(mask); // 下一个要分配的溢出桌
+    if (i >= n) continue;
+    for (let j = 0; j < m; j++) {
+      if (mask & (1 << j)) continue;
+      const nm = mask | (1 << j);
+      const c = dp[mask] + costs[i][j];
+      if (c < dp[nm]) { dp[nm] = c; prev[nm] = mask; }
+    }
+  }
+  // 找恰好分配 n 个、总距离最小的 mask
+  let bestMask = -1, best = Infinity;
+  for (let mask = 0; mask < size; mask++) {
+    if (popcount(mask) === n && dp[mask] < best) { best = dp[mask]; bestMask = mask; }
+  }
+  // 回溯得到「空桌 j → 溢出桌 i」的映射
+  const assign = new Array(n).fill(-1);
+  let mask = bestMask;
+  while (mask > 0) {
+    const pm = prev[mask];
+    const j = Math.log2(mask ^ pm); // 新加入的空桌位
+    const i = popcount(pm);
+    assign[i] = j;
+    mask = pm;
+  }
+  return assign; // assign[i] = 空桌下标
+}
+
+// ============================================================================
+//  第五组交换规则:特殊四桌若落到第 5 组,与第 4 组同排交换
+// ============================================================================
+function isSpecialDesk(students) {
+  const s = students.filter(Boolean).slice().sort().join('|');
+  return (
+    s === '熊晨伊|刘一诺' ||
+    s === '仝亚盈' ||
+    s === '杜卓航|樊霖洁' ||
+    s === '周加灵|隆竞瑶'
+  );
+}
+
+// ============================================================================
+//  主入口:给定版本与周数,返回「实际座位表」的完整放置结果
+//  返回 Map: key = `${group},${actualRow}` -> { students, group, actualRow, special, fixed }
+// ============================================================================
+function getActualSeating(version, weeks) {
+  const std = standardPositions(version, weeks);
+
+  // 1) 固定桌直接落位(鲁唐扬真)
+  const placement = new Map();
+  for (const d of std) {
+    if (d.fixed) {
+      placement.set(`4,1`, { students: d.students, group: 4, actualRow: 1, fixed: true, special: false });
+    }
+  }
+
+  // 2) 可轮换桌:算实际排,能落进实际形状的直接放;落不进的记为溢出
+  const overflow = [];
+  for (const d of std) {
+    if (d.fixed) continue;
+    const actualRow = stdToActualRow(d.group, d.stdRow, version);
+    const key = `${d.group},${actualRow}`;
+    if ((ACTUAL_ROWS[d.group] || []).includes(actualRow) && !placement.has(key)) {
+      placement.set(key, { students: d.students, group: d.group, actualRow, fixed: false, special: isSpecialDesk(d.students) });
+    } else {
+      // 溢出桌:记录其「概念实际坐标」(可能越界),用于计算距离
+      overflow.push({ ...d, actualRow, special: isSpecialDesk(d.students) });
+    }
+  }
+
+  // 3) 收集空的实际桌位
+  const empty = [];
+  for (let g = 1; g <= NUM_GROUPS; g++) {
+    for (const r of ACTUAL_ROWS[g]) {
+      if (!placement.has(`${g},${r}`)) empty.push({ group: g, row: r });
+    }
+  }
+
+  // 4) 最优指派:溢出桌 -> 空桌(总距离最小)
+  if (overflow.length && empty.length) {
+    const costs = overflow.map((o) => empty.map((e) => distance(o.group, o.actualRow, e.group, e.row)));
+    const assign = assignMinCost(costs);
+    overflow.forEach((o, i) => {
+      const j = assign[i];
+      if (j >= 0) {
+        const e = empty[j];
+        placement.set(`${e.group},${e.row}`, { students: o.students, group: e.group, actualRow: e.row, fixed: false, special: o.special });
+      }
+    });
+  }
+
+  // 5) 第五组交换:特殊桌落第 5 组 -> 与第 4 组同排(非特殊、非固定)桌交换
+  swapOutOfGroupFive(placement);
+
+  return placement;
+}
+
+function swapOutOfGroupFive(placement) {
+  // 第 5 组中的特殊桌
+  const specialInFive = [];
+  for (const [key, desk] of placement) {
+    if (desk.group === 5 && desk.special && !desk.fixed) {
+      specialInFive.push({ key, desk });
+    }
+  }
+  // 第 4 组中可交换的非特殊、非固定桌(优先同排,其次就近)
+  const swapTargets = [];
+  for (const [key, desk] of placement) {
+    if (desk.group === 4 && !desk.special && !desk.fixed) {
+      swapTargets.push({ key, desk });
+    }
+  }
+
+  for (const { key, desk } of specialInFive) {
+    // 优先同排;否则挑离得最近的第 4 组非特殊桌
+    let best = null;
+    for (const t of swapTargets) {
+      const d = distance(desk.group, desk.actualRow, t.desk.group, t.desk.actualRow);
+      if (!best || d < best.d) best = { t, d };
+    }
+    if (!best) continue; // 第 4 组没有可交换的非特殊桌(极端情况),放弃
+    const { t } = best;
+    // 交换位置:特殊桌去第 4 组,非特殊桌去第 5 组
+    const targetKey = t.key;
+    const target = t.desk;
+    placement.set(targetKey, { ...desk, group: 4, actualRow: target.actualRow });
+    placement.set(key, { ...target, group: 5, actualRow: desk.actualRow });
+    // 该非特殊桌已被换走,移出候选
+    swapTargets.splice(swapTargets.indexOf(t), 1);
+  }
 }
 
 // ============================================================================
 //  日期 / 周 工具
 // ============================================================================
 function getSemesterStart() {
-  const stored = localStorage.getItem('seat-semester-start');
+  const stored = localStorage.getItem(KEY_START);
   if (stored) return new Date(stored + 'T00:00:00');
   return new Date('2026-09-01T00:00:00');
 }
 
 function setSemesterStart(date) {
-  localStorage.setItem('seat-semester-start', date.toISOString().slice(0, 10));
+  localStorage.setItem(KEY_START, formatDate(date));
 }
 
-function getWeekNumber(date, semesterStart) {
-  const diffMs = date.getTime() - semesterStart.getTime();
+// 某日期相对学期开始的周数(0 = 起始那周,即第 1 周)
+function weeksSinceStart(date) {
+  const start = getSemesterStart();
+  const diffMs = date.getTime() - start.getTime();
   return Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
 }
 
-function getWeekStartDate(weekNum, semesterStart) {
-  const d = new Date(semesterStart);
+// 第 n 周(0 起)的第一天
+function weekStartDate(weekNum) {
+  const d = getSemesterStart();
   d.setDate(d.getDate() + weekNum * 7);
   return d;
 }
@@ -293,70 +351,40 @@ function formatDate(date) {
 }
 
 function toDateString(date) {
-  return date.toISOString().slice(0, 10);
+  return formatDate(date);
 }
 
-// 把日期对齐到所在「周」的第一天(与主页按周查看的锚点一致),
-// 这样换座记录在整周内生效,不会因为选了周中某天而主页看不到。
-function snapToWeekStart(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00');
-  const semStart = getSemesterStart();
-  const weekNum = getWeekNumber(d, semStart);
-  return formatDate(getWeekStartDate(weekNum, semStart));
+// 当前激活的版本(默认 V1)
+function getActiveVersion() {
+  const stored = localStorage.getItem('seat-active-version');
+  return stored === '2' ? 2 : 1;
+}
+
+function setActiveVersion(v) {
+  localStorage.setItem('seat-active-version', String(v));
+}
+
+// 供页面使用:某日期的实际座位表(按日期折算周数)
+function getSeatingForDate(version, dateStr) {
+  const date = new Date(dateStr + 'T00:00:00');
+  const weeks = Math.max(0, weeksSinceStart(date));
+  return getActualSeating(version, weeks);
 }
 
 // ============================================================================
-//  学生姓名(可持久化)
+//  校验:连续 N 周,每桌都落在有效实际桌位且不重叠
 // ============================================================================
-function getDefaultNames() {
-  return { ...STUDENT_NAMES };
-}
-
-function loadNames() {
-  try {
-    const raw = localStorage.getItem('seat-student-names');
-    if (raw) return { ...getDefaultNames(), ...JSON.parse(raw) };
-  } catch (e) { /* ignore */ }
-  return getDefaultNames();
-}
-
-function saveName(id, name) {
-  const names = loadNames();
-  names[id] = name;
-  localStorage.setItem('seat-student-names', JSON.stringify(names));
-}
-
-function getStudentName(id) {
-  if (id === null) return '';
-  if (id === VIRTUAL_STUDENT) return '(空)';
-  const names = loadNames();
-  return names[id] || `${id}号`;
-}
-
-// 原始姓名(空座位/虚拟座位返回空串),供管理员编辑用
-function getRawStudentName(id) {
-  if (id === null || id === undefined || id === VIRTUAL_STUDENT) return '';
-  const names = loadNames();
-  return names[id] || '';
-}
-
-// name → id 反查表
-function buildNameToIdMap() {
-  const names = loadNames();
-  const map = {};
-  for (const [id, name] of Object.entries(names)) {
-    if (name && name.trim()) map[name.trim()] = Number(id);
+function verifyRotation(version, maxWeeks) {
+  for (let w = 0; w <= maxWeeks; w++) {
+    const placement = getActualSeating(version, w);
+    const seen = new Set();
+    for (const [key, desk] of placement) {
+      if (!(ACTUAL_ROWS[desk.group] || []).includes(desk.actualRow)) {
+        return { ok: false, week: w, key, desk };
+      }
+      if (seen.has(key)) return { ok: false, week: w, key, desk, dup: true };
+      seen.add(key);
+    }
   }
-  return map;
-}
-
-// 新增学生(返回新 ID,跳过 49 号虚拟座位)
-function addStudent(name) {
-  name = (name || '').trim();
-  if (!name) return null;
-  const names = loadNames();
-  const nextId = Math.max(VIRTUAL_STUDENT, ...Object.keys(names).map(Number)) + 1;
-  names[nextId] = name;
-  localStorage.setItem('seat-student-names', JSON.stringify(names));
-  return nextId;
+  return { ok: true };
 }

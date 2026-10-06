@@ -21,10 +21,10 @@ const NUM_GROUPS = 5;
 const NUM_ROWS = 6;
 
 // localStorage / KV 键
-const KEY_START      = 'seat-semester-start';
-const KEY_NAMES      = 'seat-student-names';
-const KEY_INITIAL_V1 = 'seat-initial-v1';
-const KEY_INITIAL_V2 = 'seat-initial-v2';
+const KEY_START          = 'seat-semester-start';
+const KEY_INITIAL_V1     = 'seat-initial-v1';
+const KEY_INITIAL_V2     = 'seat-initial-v2';
+const KEY_ACTIVE_VERSION = 'seat-active-version';
 
 // ============================================================================
 //  实际教室形状:每个组有哪些「实际排」(真实存在的桌子)
@@ -85,12 +85,6 @@ function V1_DESKS() {
   ];
 }
 
-function V2_DESKS() {
-  // 与 V1 相同,只是没有鲁唐扬真(第 4 组只有 5 桌,共 25 桌 / 47 人)
-  const desks = V1_DESKS();
-  return desks; // 鲁唐扬真不在此列表(见 buildVersionDesks)
-}
-
 // 是否 V1 含鲁唐扬真
 function hasLu(version) {
   return version === 1;
@@ -110,21 +104,24 @@ function buildVersionDesks(version) {
 //  初始座位表读写(允许管理员覆盖;默认用内置 V1/V2)
 // ============================================================================
 function defaultInitialDesks(version) {
-  return version === 1 ? V1_DESKS() : V2_DESKS();
+  // V1 与 V2 的初始名单相同;鲁唐扬真由 buildVersionDesks 按版本(hasLu)单独加入。
+  return V1_DESKS();
+}
+
+function initialKey(version) {
+  return version === 1 ? KEY_INITIAL_V1 : KEY_INITIAL_V2;
 }
 
 function loadInitialDesks(version) {
-  const key = version === 1 ? KEY_INITIAL_V1 : KEY_INITIAL_V2;
   try {
-    const raw = localStorage.getItem(key);
+    const raw = localStorage.getItem(initialKey(version));
     if (raw) return JSON.parse(raw);
   } catch (e) { /* ignore */ }
   return defaultInitialDesks(version);
 }
 
 function saveInitialDesks(version, desks) {
-  const key = version === 1 ? KEY_INITIAL_V1 : KEY_INITIAL_V2;
-  localStorage.setItem(key, JSON.stringify(desks));
+  localStorage.setItem(initialKey(version), JSON.stringify(desks));
 }
 
 // ============================================================================
@@ -174,55 +171,45 @@ function distance(g1, r1, g2, r2) {
 }
 
 // 最小总距离(即平均值最小)的最优指派:溢出桌 -> 空桌
-// costs[i][j] = 溢出桌 i 与空桌 j 的距离;用位掩码 DP 求最优(规模极小)
+// 溢出桌数 n 与空桌数 m 都极小(通常仅 1),直接回溯枚举即可求最优。
 function assignMinCost(costs) {
-  const n = costs.length;          // 溢出桌数量
-  const m = n ? costs[0].length : 0; // 空桌数量(可能 > n)
+  const n = costs.length;
+  const m = n ? costs[0].length : 0;
   if (n === 0) return [];
-  const size = 1 << m;
-  const dp = new Array(size).fill(Infinity);
-  const prev = new Array(size).fill(-1);
-  dp[0] = 0;
-  const popcount = (x) => { let c = 0; while (x) { c += x & 1; x >>= 1; } return c; };
-  for (let mask = 0; mask < size; mask++) {
-    const i = popcount(mask); // 下一个要分配的溢出桌
-    if (i >= n) continue;
-    for (let j = 0; j < m; j++) {
-      if (mask & (1 << j)) continue;
-      const nm = mask | (1 << j);
-      const c = dp[mask] + costs[i][j];
-      if (c < dp[nm]) { dp[nm] = c; prev[nm] = mask; }
-    }
-  }
-  // 找恰好分配 n 个、总距离最小的 mask
-  let bestMask = -1, best = Infinity;
-  for (let mask = 0; mask < size; mask++) {
-    if (popcount(mask) === n && dp[mask] < best) { best = dp[mask]; bestMask = mask; }
-  }
-  // 回溯得到「空桌 j → 溢出桌 i」的映射
   const assign = new Array(n).fill(-1);
-  let mask = bestMask;
-  while (mask > 0) {
-    const pm = prev[mask];
-    const j = Math.log2(mask ^ pm); // 新加入的空桌位
-    const i = popcount(pm);
-    assign[i] = j;
-    mask = pm;
-  }
+  const used = new Array(m).fill(false);
+  let best = Infinity;
+  (function dfs(i, total, path) {
+    if (i === n) {
+      if (total < best) { best = total; for (let k = 0; k < n; k++) assign[k] = path[k]; }
+      return;
+    }
+    for (let j = 0; j < m; j++) {
+      if (used[j]) continue;
+      used[j] = true;
+      path[i] = j;
+      dfs(i + 1, total + costs[i][j], path);
+      used[j] = false;
+    }
+  })(0, 0, new Array(n));
   return assign; // assign[i] = 空桌下标
 }
 
 // ============================================================================
 //  第五组交换规则:特殊四桌若落到第 5 组,与第 4 组同排交换
 // ============================================================================
+// 特殊四桌:键与输入都用同一次 sort() 生成,避免手写名字顺序出错(如 熊/刘 的码点序)。
+const SPECIAL_DESK_KEYS = new Set(
+  [
+    ['熊晨伊', '刘一诺'],
+    ['仝亚盈'],
+    ['杜卓航', '樊霖洁'],
+    ['周加灵', '隆竞瑶'],
+  ].map((pair) => pair.slice().sort().join('|'))
+);
+
 function isSpecialDesk(students) {
-  const s = students.filter(Boolean).slice().sort().join('|');
-  return (
-    s === '熊晨伊|刘一诺' ||
-    s === '仝亚盈' ||
-    s === '杜卓航|樊霖洁' ||
-    s === '周加灵|隆竞瑶'
-  );
+  return SPECIAL_DESK_KEYS.has(students.filter(Boolean).slice().sort().join('|'));
 }
 
 // ============================================================================
@@ -350,18 +337,14 @@ function formatDate(date) {
   return `${y}-${m}-${d}`;
 }
 
-function toDateString(date) {
-  return formatDate(date);
-}
-
 // 当前激活的版本(默认 V1)
 function getActiveVersion() {
-  const stored = localStorage.getItem('seat-active-version');
+  const stored = localStorage.getItem(KEY_ACTIVE_VERSION);
   return stored === '2' ? 2 : 1;
 }
 
 function setActiveVersion(v) {
-  localStorage.setItem('seat-active-version', String(v));
+  localStorage.setItem(KEY_ACTIVE_VERSION, String(v));
 }
 
 // 供页面使用:某日期的实际座位表(按日期折算周数)

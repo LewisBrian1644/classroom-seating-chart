@@ -142,19 +142,13 @@ function showEditor() {
   renderEditor();
 }
 
-// 标准坐标下的可编辑形状(组 -> 标准排号)
-function stdShape(version) {
-  return {
-    1: [1, 2, 3, 4],
-    2: [1, 2, 3, 4, 5],
-    3: [1, 2, 3, 4, 5, 6],
-    4: [1, 2, 3, 4, 5],
-    5: [1, 2, 3, 4, 5],
-  };
+// 标准坐标下的可编辑形状(组 -> 标准最大排号),由 shared.js 的默认桌数据推导,与模型同源。
+function stdShape() {
+  return groupMaxRow(defaultInitialDesks(currentVersion));
 }
 
 function renderEditor() {
-  const shape = stdShape(currentVersion);
+  const shape = stdShape();
   const desks = loadInitialDesks(currentVersion);
   // 建立 (group,row) -> 桌 的查找
   const map = {};
@@ -166,7 +160,7 @@ function renderEditor() {
   for (let r = 1; r <= NUM_ROWS; r++) {
     html += `<div class="row-label">第${r}排</div>`;
     for (let g = NUM_GROUPS; g >= 1; g--) {
-      const valid = (shape[g] || []).includes(r);
+      const valid = r <= (shape[g] || 0);
       if (!valid) { html += '<div class="cell" style="background:transparent;border:none;"></div>'; continue; }
       const d = map[`${g},${r}`];
       const val = d ? d.students.filter(Boolean).join('/') : '';
@@ -195,7 +189,6 @@ function saveEditor() {
     const parts = raw.split(/[/,，、\s]+/).filter(Boolean);
     if (parts.length === 0) continue;
     if (parts.length === 1) {
-      if (!parts[0]) continue;
       desks.push({ group: g, row: r, students: [parts[0], null] });
     } else {
       desks.push({ group: g, row: r, students: [parts[0], parts[1]] });
@@ -217,7 +210,7 @@ async function init() {
   document.getElementById('btnSave').addEventListener('click', saveEditor);
   document.getElementById('btnReset').addEventListener('click', () => {
     if (confirm(`确定重置 V${currentVersion} 为默认初始座位表吗？`)) {
-      localStorage.removeItem(currentVersion === 1 ? 'seat-initial-v1' : 'seat-initial-v2');
+      localStorage.removeItem(initialKey(currentVersion));
       renderEditor();
       document.getElementById('saveStatus').textContent = '已重置为默认（尚未推送到云端，请点保存）';
     }

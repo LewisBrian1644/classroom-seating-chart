@@ -5,6 +5,7 @@
 //  共享状态(学期开始日期 / 初始座位表 V1 / V2 / 激活版本)以单个 key "state" 整体读写。
 // ============================================================================
 
+// 与客户端 shared.js 的 SYNC_KEYS 对应;本文件运行在独立 Worker 运行时,无法 import 共享常量,改动需两处同步。
 const KEYS = ['seat-semester-start', 'seat-initial-v1', 'seat-initial-v2', 'seat-active-version'];
 
 function json(data, status = 200) {

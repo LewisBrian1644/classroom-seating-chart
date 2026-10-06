@@ -5,7 +5,8 @@
 // ============================================================================
 
 const SYNC_API = '/api/state';
-const SYNC_KEYS = ['seat-semester-start', 'seat-initial-v1', 'seat-initial-v2', 'seat-active-version'];
+// 键名与 shared.js 的 KEY_* 常量保持一致(shared.js 先于本文件加载)
+const SYNC_KEYS = [KEY_START, KEY_INITIAL_V1, KEY_INITIAL_V2, KEY_ACTIVE_VERSION];
 
 async function syncLoad() {
   try {

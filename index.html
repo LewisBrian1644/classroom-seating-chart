@@ -108,6 +108,8 @@ body { font-family: var(--font-sans); background: var(--color-bg); color: var(--
       <button class="btn" id="btnNextWeek" title="下一周">下周 ▶</button>
       <input type="date" class="date-input" id="datePicker" title="选择日期查看">
       <button class="btn primary" id="btnToday">今天</button>
+      <button class="btn" id="btnVer1" title="切换初始座位表：V1（含鲁唐扬真）">V1</button>
+      <button class="btn" id="btnVer2" title="切换初始座位表：V2（不含鲁唐扬真）">V2</button>
     </div>
   </div>
 
@@ -136,7 +138,7 @@ function render(weekNum) {
   const version = getActiveVersion();
   const date = weekStartDate(weekNum);
   const dateStr = formatDate(date);
-  const seating = getSeatingForDate(version, dateStr);
+  const seating = getActualSeating(version, Math.max(0, weekNum));
 
   // 渲染网格(列:第5组 → 第1组,左到右;行:第1排在前,第6排在后)
   const seatGrid = document.getElementById('seatGrid');
@@ -183,6 +185,10 @@ function render(weekNum) {
     <span class="badge alone">👥 ${people} 人</span>
     <span class="badge alone">◎ 单人座：${singles.join('、') || '无'}</span>
   `;
+
+  // 版本按钮高亮
+  document.getElementById('btnVer1').classList.toggle('active', version === 1);
+  document.getElementById('btnVer2').classList.toggle('active', version === 2);
 }
 
 function goToWeek(n) { render(n); }
@@ -197,6 +203,8 @@ async function init() {
   document.getElementById('btnPrevWeek').addEventListener('click', () => goToWeek(currentWeekNum - 1));
   document.getElementById('btnNextWeek').addEventListener('click', () => goToWeek(currentWeekNum + 1));
   document.getElementById('btnToday').addEventListener('click', () => goToWeek(Math.max(0, weeksSinceStart(new Date()))));
+  document.getElementById('btnVer1').addEventListener('click', () => { setActiveVersion(1); render(currentWeekNum); });
+  document.getElementById('btnVer2').addEventListener('click', () => { setActiveVersion(2); render(currentWeekNum); });
   document.getElementById('datePicker').addEventListener('change', (e) => {
     const d = new Date(e.target.value + 'T00:00:00');
     goToWeek(Math.max(0, weeksSinceStart(d)));

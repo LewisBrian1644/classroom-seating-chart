@@ -167,7 +167,6 @@ function render(weekNum) {
 
   // 头部信息
   document.getElementById('weekDisplay').textContent = `第 ${weekNum + 1} 周`;
-  document.getElementById('datePicker').value = dateStr;
 
   // 信息栏
   let people = 0, singles = [];
@@ -199,6 +198,7 @@ async function init() {
   let wn = weeksSinceStart(today);
   if (wn < -20 || wn > 40) wn = 0;
   render(Math.max(0, wn));
+  document.getElementById('datePicker').value = formatDate(today); // 日期框默认显示今天
 
   document.getElementById('btnPrevWeek').addEventListener('click', () => goToWeek(currentWeekNum - 1));
   document.getElementById('btnNextWeek').addEventListener('click', () => goToWeek(currentWeekNum + 1));

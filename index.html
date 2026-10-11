@@ -202,7 +202,11 @@ async function init() {
 
   document.getElementById('btnPrevWeek').addEventListener('click', () => goToWeek(currentWeekNum - 1));
   document.getElementById('btnNextWeek').addEventListener('click', () => goToWeek(currentWeekNum + 1));
-  document.getElementById('btnToday').addEventListener('click', () => goToWeek(Math.max(0, weeksSinceStart(new Date()))));
+  document.getElementById('btnToday').addEventListener('click', () => {
+    const now = new Date();
+    goToWeek(Math.max(0, weeksSinceStart(now)));
+    document.getElementById('datePicker').value = formatDate(now); // 让日期框显示“今天”，点击有可见反馈
+  });
   document.getElementById('btnVer1').addEventListener('click', () => { setActiveVersion(1); render(currentWeekNum); });
   document.getElementById('btnVer2').addEventListener('click', () => { setActiveVersion(2); render(currentWeekNum); });
   document.getElementById('datePicker').addEventListener('change', (e) => {

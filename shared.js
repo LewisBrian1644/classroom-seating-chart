@@ -37,6 +37,11 @@ const ACTUAL_ROWS = {
   5: [2, 3, 4, 5, 6],     // 第 5 组 2-6 排
 };
 
+// 假期(不换座的日期范围,含首尾两天)。假期内的日子不计入换座周期。
+const HOLIDAYS = [
+  { from: '2026-10-01', to: '2026-10-09' }, // 国庆
+];
+
 // ============================================================================
 //  初始座位表(标准坐标)。group = 小组(1-5,固定不变),row = 该小组内的标准排号。
 //  students = [左, 右],单人则右侧为 null。
@@ -316,18 +321,49 @@ function setSemesterStart(date) {
   localStorage.setItem(KEY_START, formatDate(date));
 }
 
-// 某日期相对学期开始的周数(0 = 起始那周,即第 1 周)
-function weeksSinceStart(date) {
-  const start = getSemesterStart();
-  const diffMs = date.getTime() - start.getTime();
-  return Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function parseDateOnly(str) {
+  return new Date(str + 'T00:00:00');
 }
 
-// 第 n 周(0 起)的第一天
-function weekStartDate(weekNum) {
-  const d = getSemesterStart();
-  d.setDate(d.getDate() + weekNum * 7);
+function dayStart(date) {
+  const d = new Date(date.getTime());
+  d.setHours(0, 0, 0, 0);
   return d;
+}
+
+// 严格早于 date 的假期天数(假期内的日子不计入换座周期)
+function holidayDaysBefore(date) {
+  const target = dayStart(date).getTime();
+  let days = 0;
+  for (const h of HOLIDAYS) {
+    const from = parseDateOnly(h.from).getTime();
+    const to = parseDateOnly(h.to).getTime() + DAY_MS; // 结束日含当天,故 +1 天
+    if (target <= from) continue;                      // 假期在 target 之后,无影响
+    days += Math.round((Math.min(target, to) - from) / DAY_MS);
+  }
+  return days;
+}
+
+// 某日期相对学期开始的「有效周数」(0 = 起始那周,即第 1 周)。假期日子不计入,故假期会暂停换座。
+function weeksSinceStart(date) {
+  const start = dayStart(getSemesterStart());
+  const calendarDays = Math.floor((dayStart(date).getTime() - start.getTime()) / DAY_MS);
+  const effectiveDays = calendarDays - holidayDaysBefore(date);
+  return Math.floor(effectiveDays / 7);
+}
+
+// 第 n 周(0 起)的第一天(有效周;因假期暂停,返回的实际日期会相应推迟)
+function weekStartDate(weekNum) {
+  const start = dayStart(getSemesterStart());
+  let days = weekNum * 7;
+  for (let i = 0; i < HOLIDAYS.length + 1; i++) {
+    const target = weekNum * 7 + holidayDaysBefore(new Date(start.getTime() + days * DAY_MS));
+    if (target === days) break;
+    days = target;
+  }
+  return new Date(start.getTime() + days * DAY_MS);
 }
 
 function formatDate(date) {

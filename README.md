@@ -30,3 +30,8 @@ npx serve .
 ## 部署
 - 挂在 Cloudflare Pages，连 GitHub 自动部署（push 即发布）。
 - 后端存储：Pages Functions `/api/state`（GET 读 / PUT 写），KV 绑定变量名 `SEATS`。
+
+## 跨设备同步
+- 管理员在后台保存的「起始日期 / 初始座位表 V1 / V2 / 当前版本」会经 `/api/state` 写入 KV，其他设备打开页面时自动拉取，实现多设备共享。
+- 前提：在 Cloudflare 后台创建 KV 命名空间（类型 Standard），并绑定到 Pages 项目，**变量名必须是 `SEATS`**（Settings → Functions → KV bindings → Add a resource binding → 选 KV namespace）。
+- 未绑定 KV 时 `/api/state` 返回 500，前端会静默回退到本地 localStorage（各设备互不相通），不影响单机使用。
